@@ -1,0 +1,22 @@
+guard_prefix=WJH_CHAT
+namespace = wjh::chat::conversation
+auto_hash=true
+auto_ostream=true
+auto_format=true
+
+# Message role (user or assistant)
+[class Role]
+description=std::string; <=>, non_empty
+constants=user:"user"
+constants=assistant:"assistant"
+
+# Stop reason from API response
+[class StopReason]
+description=std::string; <=>
+constants=end_turn:"end_turn"
+constants=max_tokens:"max_tokens"
+constants=stop_sequence:"stop_sequence"
+
+# Text content within a message
+[class MessageText]
+description=std::string; <=>

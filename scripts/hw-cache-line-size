@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+system="${1}"
+if [ "${system}" == "Darwin" ]; then
+    echo 128
+    #sysctl -n hw.cachelinesize
+elif [ "${system}" == "Linux" ]; then
+    getconf LEVEL1_DCACHE_LINESIZE
+else
+    echo "hw-cache-line-size: Unrecognized SYSTEM=\"${system}\""
+    exit 1
+fi

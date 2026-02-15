@@ -1,0 +1,43 @@
+guard_prefix=WJH_CHAT
+namespace = wjh::chat::client
+auto_hash=true
+auto_ostream=true
+auto_format=true
+
+# HTTP status code
+[class HttpStatusCode]
+description=int; <=>
+
+# HTTP hostname
+[class Hostname]
+description=std::string; <=>, non_empty
+
+# TCP port number
+[class PortNumber]
+description=int; <=>, positive
+default_value=443
+
+# HTTP request path
+[class HttpPath]
+description=std::string; <=>, non_empty
+
+# HTTP request/response body
+[class HttpBody]
+description=std::string; <=>
+
+# HTTP header name (e.g., "Content-Type", "Authorization")
+[class HeaderName]
+description=std::string; <=>, non_empty
+
+# HTTP header value
+[class HeaderValue]
+description=std::string; <=>
+
+# Finish reason from OpenAI-compatible API response
+[class FinishReason]
+description=std::string; <=>
+
+# Timeout duration in seconds
+[class TimeoutSeconds]
+description=int; <=>, positive
+default_value=30

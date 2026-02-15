@@ -1,0 +1,168 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+      },
+      "environment": {
+        "CCACHE_DIR": "${sourceDir}/.build/.ccache"
+      }
+    },
+    {
+      "name": "base-gcc",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "base-clang",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "debug-gcc",
+      "displayName": "Debug GCC (fast, no ASan)",
+      "inherits": "base-gcc",
+      "binaryDir": "${sourceDir}/.build/debug-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WJH_CHAT_SANITIZE": "OFF"
+      }
+    },
+    {
+      "name": "debug-gcc-asan",
+      "displayName": "Debug GCC with ASan (for CI)",
+      "inherits": "base-gcc",
+      "binaryDir": "${sourceDir}/.build/debug-gcc-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WJH_CHAT_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "debug-clang",
+      "displayName": "Debug Clang (ASan enabled)",
+      "inherits": "base-clang",
+      "binaryDir": "${sourceDir}/.build/debug-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WJH_CHAT_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "release-gcc",
+      "displayName": "Release GCC (fast, no ASan)",
+      "inherits": "base-gcc",
+      "binaryDir": "${sourceDir}/.build/release-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WJH_CHAT_SANITIZE": "OFF"
+      }
+    },
+    {
+      "name": "release-gcc-asan",
+      "displayName": "Release GCC with ASan (for CI)",
+      "inherits": "base-gcc",
+      "binaryDir": "${sourceDir}/.build/release-gcc-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WJH_CHAT_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "release-clang",
+      "displayName": "Release Clang (ASan enabled)",
+      "inherits": "base-clang",
+      "binaryDir": "${sourceDir}/.build/release-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WJH_CHAT_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (alias for debug-clang)",
+      "inherits": "debug-clang",
+      "binaryDir": "${sourceDir}/.build/debug-clang"
+    },
+    {
+      "name": "release",
+      "displayName": "Release (alias for release-clang)",
+      "inherits": "release-clang",
+      "binaryDir": "${sourceDir}/.build/release-clang"
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug-gcc", "configurePreset": "debug-gcc" },
+    { "name": "debug-gcc-asan", "configurePreset": "debug-gcc-asan" },
+    { "name": "debug-clang", "configurePreset": "debug-clang" },
+    { "name": "release-gcc", "configurePreset": "release-gcc" },
+    { "name": "release-gcc-asan", "configurePreset": "release-gcc-asan" },
+    { "name": "release-clang", "configurePreset": "release-clang" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "release", "configurePreset": "release" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug-gcc",
+      "configurePreset": "debug-gcc",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "debug-gcc-asan",
+      "configurePreset": "debug-gcc-asan",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "debug-clang",
+      "configurePreset": "debug-clang",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "release-gcc",
+      "configurePreset": "release-gcc",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "release-gcc-asan",
+      "configurePreset": "release-gcc-asan",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "release-clang",
+      "configurePreset": "release-clang",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": { "outputOnFailure": true },
+      "execution": { "jobs": 0 }
+    }
+  ]
+}

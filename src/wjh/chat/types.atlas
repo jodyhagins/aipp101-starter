@@ -1,0 +1,50 @@
+guard_prefix=WJH_CHAT
+namespace = wjh::chat
+auto_hash=true
+auto_ostream=true
+auto_format=true
+
+# API key for authentication with OpenRouter
+[class ApiKey]
+description=std::string; <=>, non_empty
+forward=substr
+
+# Model identifier (e.g., anthropic/claude-sonnet-4)
+[class ModelId]
+description=std::string; <=>, non_empty
+default_value="anthropic/claude-sonnet-4"
+
+# Maximum tokens for response
+[class MaxTokens]
+description=std::uint32_t; <=>, positive
+default_value=4096u
+
+# System prompt for LLM instructions
+[class SystemPrompt]
+description=std::string; <=>
+
+# Whether to display help text and exit
+[class ShowHelp]
+description=bool; ==, bool
+default_value=false
+
+# Whether to display resolved config and exit
+[class ShowConfig]
+description=bool; ==, bool
+default_value=false
+
+# Program name for help text and usage messages
+[class ProgramName]
+description=std::string; <=>
+
+# Formatted help/usage text for the program
+[class HelpText]
+description=std::string; <=>
+
+# User input message text
+[class UserInput]
+description=std::string; <=>
+
+# Assistant response text
+[class AssistantResponse]
+description=std::string; <=>

@@ -1,0 +1,7 @@
+# Build artifacts
+build/
+.build/
+
+# Environment configuration
+.env
+.env.local
