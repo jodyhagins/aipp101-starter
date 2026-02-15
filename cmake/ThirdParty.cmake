@@ -10,7 +10,7 @@
 message(STATUS "Processing third-party Atlas...")
 FetchContent_Declare(
         Atlas
-        GIT_REPOSITORY /Users/jhagins/Dropbox/Programming/remotes/atlas.git
+        GIT_REPOSITORY https://github.com/jodyhagins/atlas.git
         GIT_TAG main
         SYSTEM
 )

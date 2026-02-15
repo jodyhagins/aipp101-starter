@@ -117,6 +117,7 @@ function(create_wjh_compile_options_target)
             -Wno-switch-default
             -Wno-unevaluated-expression
             -Wno-defaulted-function-deleted
+            -Wno-unsafe-buffer-usage
     )
 
     set(WARNINGS ${COMMON_WARNINGS})
