@@ -154,9 +154,18 @@ append_agents_file(
         return;
     }
 
+    // GCC 13 at -O3 inlines through istreambuf_iterator into
+    // streambuf and emits a false -Wnull-dereference warning.
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
     std::string content(
         (std::istreambuf_iterator<char>(file)),
         std::istreambuf_iterator<char>());
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
     if (content.empty()) {
         return;
