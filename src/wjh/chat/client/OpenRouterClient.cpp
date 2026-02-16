@@ -45,10 +45,17 @@ nlohmann::json
 OpenRouterClient::
 build_request(conversation::Conversation const & conversation) const
 {
-    return {
+    auto request = nlohmann::json{
         {"model", json_value(config_.model)},
         {"max_tokens", json_value(config_.max_tokens)},
         {"messages", convert_messages_to_openai(conversation)}};
+
+    if (config_.temperature) {
+        request["temperature"] =
+            json_value(*config_.temperature);
+    }
+
+    return request;
 }
 
 conversation::StopReason
