@@ -23,7 +23,8 @@ makeTestConfig()
         .api_key = ApiKey("test-api-key"),
         .model = ModelId("openai/gpt-4"),
         .max_tokens = MaxTokens(4096u),
-        .system_prompt = SystemPrompt{"Test system prompt"}};
+        .system_prompt = SystemPrompt{"Test system prompt"},
+        .temperature = std::nullopt};
 }
 
 TEST_SUITE("OpenRouterClient")
@@ -42,10 +43,23 @@ TEST_SUITE("OpenRouterClient")
                 .api_key = ApiKey("test-key"),
                 .model = ModelId("meta-llama/llama-3-70b-instruct"),
                 .max_tokens = MaxTokens(2048u),
-                .system_prompt = std::nullopt};
+                .system_prompt = std::nullopt,
+                .temperature = std::nullopt};
 
             OpenRouterClient client(std::move(config));
             CHECK(client.model() == ModelId("meta-llama/llama-3-70b-instruct"));
+        }
+
+        SUBCASE("With temperature") {
+            OpenRouterClientConfig config{
+                .api_key = ApiKey("test-key"),
+                .model = ModelId("openai/gpt-4"),
+                .max_tokens = MaxTokens(4096u),
+                .system_prompt = std::nullopt,
+                .temperature = Temperature{0.7f}};
+
+            OpenRouterClient client(std::move(config));
+            CHECK(client.model() == ModelId("openai/gpt-4"));
         }
     }
 

@@ -7,6 +7,7 @@
 #include "wjh/chat/CommandLine.hpp"
 
 #include <charconv>
+#include <cstdlib>
 
 namespace wjh::chat {
 
@@ -61,6 +62,25 @@ parse_args(std::span<char const * const> args)
             continue;
         }
 
+        if (arg == "--temperature") {
+            if (i + 1 >= args.size()) {
+                return make_error(
+                    "Missing argument for {}", arg);
+            }
+            ++i;
+            std::string arg_str{args[i]};
+            char * end = nullptr;
+            float temp = std::strtof(arg_str.c_str(), &end);
+            if (end != arg_str.c_str() + arg_str.size()) {
+                return make_error(
+                    "Invalid number for --temperature:"
+                    " '{}'",
+                    args[i]);
+            }
+            result.temperature = Temperature{temp};
+            continue;
+        }
+
         return make_error("Unknown argument: '{}'", arg);
     }
 
@@ -78,6 +98,7 @@ Options:
   -m, --model <id>           Model ID (default: anthropic/claude-sonnet-4)
   -s, --system-prompt <text>  System prompt
   -t, --max-tokens <n>        Max response tokens (default: 4096)
+  --temperature <value>       LLM temperature (0.0-2.0)
   --show-config               Display resolved config and exit
   -h, --help                  Show this help message
 
@@ -85,6 +106,7 @@ Environment variables:
   OPENROUTER_API_KEY          API key (required)
   LLM_MODEL                   Model ID override
   MAX_TOKENS                  Max tokens override
+  TEMPERATURE                 LLM temperature override
   SYSTEM_PROMPT               System prompt
 
 REPL commands:
