@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { preset: debug-gcc,     compiler: gcc,   version: 13 }
+          - { preset: release-gcc,   compiler: gcc,   version: 13 }
+          - { preset: debug-clang,   compiler: clang, version: 18 }
+          - { preset: release-clang, compiler: clang, version: 18 }
+
+    name: ${{ matrix.preset }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache libssl-dev
+
+      - name: Set up GCC ${{ matrix.version }}
+        if: matrix.compiler == 'gcc'
+        run: |
+          sudo apt-get install -y gcc-${{ matrix.version }} g++-${{ matrix.version }}
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${{ matrix.version }} 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-${{ matrix.version }} 100
+
+      - name: Set up Clang ${{ matrix.version }}
+        if: matrix.compiler == 'clang'
+        run: |
+          sudo apt-get install -y clang-${{ matrix.version }}
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ matrix.version }} 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${{ matrix.version }} 100
+
+      - name: Print compiler version
+        run: ${{ matrix.compiler }} --version
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .build/.ccache
+          key: ccache-${{ matrix.preset }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.preset }}-
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
