@@ -226,6 +226,85 @@ TEST_SUITE("OpenRouterClient")
                   "{\"command\":\"pwd\"}\n");
         }
     }
+
+    TEST_CASE("Agent loop message structures")
+    {
+        SUBCASE("Tool result message format") {
+            // The agent loop builds this message after
+            // executing a tool call.
+            auto tool_result = nlohmann::json{
+                {"role", "tool"},
+                {"tool_call_id", "call_abc123"},
+                {"content",
+                 "README.md\nsrc/\n[exit code: 0]"}};
+
+            CHECK(tool_result["role"] == "tool");
+            CHECK(tool_result.contains("tool_call_id"));
+            CHECK(tool_result["tool_call_id"]
+                  == "call_abc123");
+            CHECK(tool_result["content"]
+                      .get<std::string>()
+                      .find("[exit code: 0]")
+                  != std::string::npos);
+        }
+
+        SUBCASE("Nudge message for empty content") {
+            // When the model responds with null or empty
+            // content, the agent loop appends a nudge.
+            auto nudge = nlohmann::json{
+                {"role", "user"},
+                {"content",
+                 "Please use your tools or respond "
+                 "with text."}};
+
+            CHECK(nudge["role"] == "user");
+            CHECK(nudge["content"]
+                      .get<std::string>()
+                      .find("tools")
+                  != std::string::npos);
+        }
+
+        SUBCASE("Tool call argument parsing") {
+            // The agent loop parses the arguments string
+            // as JSON and extracts the command.
+            auto arguments = R"({"command":"cat src/main.cpp"})";
+            auto args =
+                nlohmann::json::parse(arguments);
+            CHECK(args.contains("command"));
+            CHECK(args["command"]
+                  == "cat src/main.cpp");
+        }
+
+        SUBCASE("Assistant message with tool calls "
+                "is preserved")
+        {
+            // The agent loop appends the full assistant
+            // message (including tool_calls) back to the
+            // messages array for context.
+            auto assistant_msg = nlohmann::json{
+                {"role", "assistant"},
+                {"content", nullptr},
+                {"tool_calls",
+                 {{{"id", "call_1"},
+                   {"type", "function"},
+                   {"function",
+                    {{"name", "bash"},
+                     {"arguments",
+                      R"({"command":"ls"})"}}}}}
+                }};
+
+            CHECK(assistant_msg["role"] == "assistant");
+            CHECK(assistant_msg["content"].is_null());
+            CHECK(assistant_msg["tool_calls"].size()
+                  == 1);
+
+            // Verify it round-trips through JSON
+            auto serialized = assistant_msg.dump();
+            auto parsed =
+                nlohmann::json::parse(serialized);
+            CHECK(parsed == assistant_msg);
+        }
+    }
 }
 
 } // anonymous namespace

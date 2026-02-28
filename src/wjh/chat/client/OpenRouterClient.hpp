@@ -71,6 +71,13 @@ private:
         nlohmann::json const & json) const;
 
     /**
+     * Send a JSON request to the API and return parsed
+     * response JSON.
+     */
+    Result<nlohmann::json> send_api_request(
+        nlohmann::json const & request);
+
+    /**
      * Convert messages to OpenAI format.
      */
     nlohmann::json convert_messages_to_openai(
