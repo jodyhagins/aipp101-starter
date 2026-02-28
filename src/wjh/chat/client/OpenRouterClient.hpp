@@ -27,6 +27,7 @@ struct OpenRouterClientConfig
     ModelId model;
     MaxTokens max_tokens;
     std::optional<SystemPrompt> system_prompt;
+    std::optional<Temperature> temperature;
 };
 
 /**

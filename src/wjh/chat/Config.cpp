@@ -11,6 +11,8 @@
 #include <charconv>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
+#include <fstream>
 #include <string>
 
 #include <dotenv.h>
@@ -67,6 +69,7 @@ resolve_config(CommandLineArgs const & args)
         .model = ModelId{"anthropic/claude-sonnet-4"},
         .max_tokens = MaxTokens{4096u},
         .system_prompt = std::nullopt,
+        .temperature = std::nullopt,
         .show_config = args.show_config};
 
     // Resolve API key (required)
@@ -105,6 +108,19 @@ resolve_config(CommandLineArgs const & args)
         config.system_prompt = SystemPrompt{std::move(*env)};
     }
 
+    // Resolve temperature: CLI > env > none
+    if (args.temperature) {
+        config.temperature = *args.temperature;
+    } else if (auto env = get_env("TEMPERATURE")) {
+        char * end = nullptr;
+        float val = std::strtof(env->c_str(), &end);
+        if (end != env->c_str() + env->size()) {
+            return make_error(
+                "Invalid TEMPERATURE value: '{}'", *env);
+        }
+        config.temperature = Temperature{val};
+    }
+
     return config;
 }
 
@@ -115,8 +131,65 @@ print_config(Config const & config, std::ostream & out)
         << "  Model:      " << config.model << "\n"
         << "  Max tokens: " << config.max_tokens << "\n"
         << "  API key:    " << config.api_key.substr(0u, 12u) << "...\n";
+    if (config.temperature) {
+        out << "  Temperature: " << *config.temperature << "\n";
+    }
     if (config.system_prompt) {
         out << "  System:     " << *config.system_prompt << "\n";
+    }
+}
+
+void
+append_agents_file(
+    Config & config,
+    std::filesystem::path const & dir)
+{
+    auto const path = dir / "AGENTS.md";
+    if (not std::filesystem::exists(path)) {
+        return;
+    }
+
+    std::ifstream file(path);
+    if (not file) {
+        return;
+    }
+
+    // GCC 13 at -O3 inlines through istreambuf_iterator into
+    // streambuf and emits a false -Wnull-dereference warning.
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
+    std::string content(
+        (std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>());
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+    if (content.empty()) {
+        return;
+    }
+
+    static constexpr auto wrapper_prefix =
+        "<system-reminder>"
+        "As you answer the user's questions, "
+        "you can use the following context.\n\n"
+        "Codebase and user instructions are shown "
+        "below. Be sure to adhere to these "
+        "instructions.\n\n"
+        "IMPORTANT: These instructions OVERRIDE "
+        "any default behavior and you MUST follow "
+        "them as written.\n\n";
+    static constexpr auto wrapper_suffix = "\n</system-reminder>";
+
+    auto wrapped = std::string{wrapper_prefix} + content + wrapper_suffix;
+
+    if (config.system_prompt) {
+        config.system_prompt = SystemPrompt{
+            std::format("{}\n{}", *config.system_prompt, wrapped)};
+    } else {
+        config.system_prompt = SystemPrompt{std::move(wrapped)};
     }
 }
 

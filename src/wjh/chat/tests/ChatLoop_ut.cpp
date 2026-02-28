@@ -23,6 +23,7 @@ makeTestConfig()
         .model = ModelId{"test-model"},
         .max_tokens = MaxTokens{4096u},
         .system_prompt = std::nullopt,
+        .temperature = std::nullopt,
         .show_config = ShowConfig{false}};
 }
 

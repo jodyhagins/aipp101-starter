@@ -197,7 +197,8 @@ run(int argc, char * argv[])
         return ExitCode::error;
     }
 
-    auto const & config = *config_result;
+    auto config = std::move(*config_result);
+    append_agents_file(config);
 
     if (config.show_config) {
         print_config(config, std::cout);
@@ -209,7 +210,8 @@ run(int argc, char * argv[])
             .api_key = config.api_key,
             .model = config.model,
             .max_tokens = config.max_tokens,
-            .system_prompt = config.system_prompt});
+            .system_prompt = config.system_prompt,
+            .temperature = config.temperature});
 
     return run(config, std::move(client), std::cin, std::cout);
 }
