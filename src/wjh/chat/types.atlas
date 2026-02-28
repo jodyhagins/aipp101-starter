@@ -52,3 +52,18 @@ description=std::string; <=>
 # Assistant response text
 [class AssistantResponse]
 description=std::string; <=>
+
+# Number of tokens in the prompt
+[class PromptTokens]
+description=std::uint32_t; +, <=>
+default_value=0u
+
+# Number of tokens in the completion
+[class CompletionTokens]
+description=std::uint32_t; +, <=>
+default_value=0u
+
+# Total number of tokens used
+[class TotalTokens]
+description=std::uint32_t; +, <=>
+default_value=0u

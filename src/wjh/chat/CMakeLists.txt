@@ -26,6 +26,7 @@ target_sources(wjh_chat
         CommandLine.hpp
         Config.hpp
         Result.hpp
+        TokenUsage.hpp
         stdfmt.hpp
         json_convert.hpp
         types.hpp
