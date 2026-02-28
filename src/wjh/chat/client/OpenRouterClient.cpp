@@ -12,6 +12,8 @@
 
 #include <array>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace {
@@ -33,14 +35,14 @@ void debug_json(
 
 nlohmann::json make_tools_json()
 {
-    return {{
+    auto bash_tool = nlohmann::json{
         {"type", "function"},
         {"function",
          {{"name", "bash"},
           {"description",
            "Execute a bash command. Use this to run "
-           "shell commands, read/write files, compile "
-           "code, run tests, etc."},
+           "shell commands, compile code, run tests, "
+           "and other terminal operations."},
           {"parameters",
            {{"type", "object"},
             {"properties",
@@ -48,8 +50,89 @@ nlohmann::json make_tools_json()
                {{"type", "string"},
                 {"description",
                  "The bash command to execute"}}}}},
-            {"required", {"command"}}}}}}
-    }};
+            {"required", {"command"}}}}}}};
+
+    auto read_file_tool = nlohmann::json{
+        {"type", "function"},
+        {"function",
+         {{"name", "read_file"},
+          {"description",
+           "Read the contents of a file. Returns "
+           "lines with line numbers. Use this "
+           "instead of bash cat/head/tail."},
+          {"parameters",
+           {{"type", "object"},
+            {"properties",
+             {{"file_path",
+               {{"type", "string"},
+                {"description",
+                 "Path to the file to read"}}},
+              {"offset",
+               {{"type", "integer"},
+                {"description",
+                 "1-indexed line number to start "
+                 "from (optional)"}}},
+              {"limit",
+               {{"type", "integer"},
+                {"description",
+                 "Maximum number of lines to read "
+                 "(optional)"}}}}},
+            {"required", {"file_path"}}}}}}};
+
+    auto write_file_tool = nlohmann::json{
+        {"type", "function"},
+        {"function",
+         {{"name", "write_file"},
+          {"description",
+           "Write content to a file. Creates parent "
+           "directories if needed. Use this instead "
+           "of bash echo/cat with redirects."},
+          {"parameters",
+           {{"type", "object"},
+            {"properties",
+             {{"file_path",
+               {{"type", "string"},
+                {"description",
+                 "Path to the file to write"}}},
+              {"content",
+               {{"type", "string"},
+                {"description",
+                 "The content to write to the "
+                 "file"}}}}},
+            {"required",
+             {"file_path", "content"}}}}}}};
+
+    auto edit_file_tool = nlohmann::json{
+        {"type", "function"},
+        {"function",
+         {{"name", "edit_file"},
+          {"description",
+           "Make a targeted edit to a file by "
+           "replacing an exact string. The old_string"
+           " must appear exactly once in the file. "
+           "Use this instead of bash sed."},
+          {"parameters",
+           {{"type", "object"},
+            {"properties",
+             {{"file_path",
+               {{"type", "string"},
+                {"description",
+                 "Path to the file to edit"}}},
+              {"old_string",
+               {{"type", "string"},
+                {"description",
+                 "The exact string to find and "
+                 "replace (must be unique)"}}},
+              {"new_string",
+               {{"type", "string"},
+                {"description",
+                 "The replacement string"}}}}},
+            {"required",
+             {"file_path", "old_string",
+              "new_string"}}}}}}};
+
+    return {bash_tool, read_file_tool,
+            write_file_tool, edit_file_tool};
 }
 
 std::string execute_bash(std::string const & command)
@@ -86,6 +169,195 @@ std::string execute_bash(std::string const & command)
         "\n[exit code: "
         + std::to_string(WEXITSTATUS(status)) + "]";
     return result;
+}
+
+std::string execute_read_file(
+    nlohmann::json const & args)
+{
+    auto path =
+        args["file_path"].get<std::string>();
+
+    std::ifstream file(path);
+    if (not file.is_open()) {
+        return "Error: Cannot open file: " + path;
+    }
+
+    int offset = 1;
+    int limit = std::numeric_limits<int>::max();
+    if (args.contains("offset")) {
+        offset = args["offset"].get<int>();
+    }
+    if (args.contains("limit")) {
+        limit = args["limit"].get<int>();
+    }
+
+    std::string result;
+    std::string line;
+    int line_num = 0;
+    int lines_read = 0;
+
+    while (std::getline(file, line)) {
+        ++line_num;
+        if (line_num < offset) {
+            continue;
+        }
+        if (lines_read >= limit) {
+            break;
+        }
+        result += std::format(
+            "{:>6}\t{}\n", line_num, line);
+        ++lines_read;
+        if (result.size() > 100'000) {
+            result += "\n... [truncated at 100KB]";
+            break;
+        }
+    }
+
+    if (result.empty()) {
+        return "File is empty or offset is past end";
+    }
+    return result;
+}
+
+std::string execute_write_file(
+    nlohmann::json const & args)
+{
+    auto path =
+        args["file_path"].get<std::string>();
+    auto content =
+        args["content"].get<std::string>();
+
+    std::cerr
+        << "\n[tool] write_file: " << path
+        << " (" << content.size() << " bytes)"
+        << "\n[y/n]> " << std::flush;
+    std::string answer;
+    std::getline(std::cin, answer);
+    if (answer.empty()
+        or (answer[0] != 'y' and answer[0] != 'Y'))
+    {
+        return "Write skipped by user";
+    }
+
+    auto parent =
+        std::filesystem::path(path).parent_path();
+    if (not parent.empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(
+            parent, ec);
+        if (ec) {
+            return "Error: Cannot create directory: "
+                + parent.string();
+        }
+    }
+
+    std::ofstream file(path);
+    if (not file.is_open()) {
+        return "Error: Cannot open file for "
+               "writing: " + path;
+    }
+
+    file << content;
+    if (not file.good()) {
+        return "Error: Write failed";
+    }
+
+    return "Wrote " + std::to_string(content.size())
+        + " bytes to " + path;
+}
+
+std::string execute_edit_file(
+    nlohmann::json const & args)
+{
+    auto path =
+        args["file_path"].get<std::string>();
+    auto old_string =
+        args["old_string"].get<std::string>();
+    auto new_string =
+        args["new_string"].get<std::string>();
+
+    // Read the entire file
+    std::ifstream file(path);
+    if (not file.is_open()) {
+        return "Error: Cannot open file: " + path;
+    }
+    std::string contents(
+        (std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>());
+    file.close();
+
+    // Check uniqueness before prompting
+    std::size_t count = 0;
+    std::size_t pos = 0;
+    std::size_t found_pos = std::string::npos;
+    while ((pos = contents.find(old_string, pos))
+           != std::string::npos)
+    {
+        ++count;
+        found_pos = pos;
+        pos += old_string.size();
+    }
+
+    if (count == 0) {
+        return "Error: old_string not found in "
+            + path;
+    }
+    if (count > 1) {
+        return "Error: old_string is not unique in "
+            + path + " (found "
+            + std::to_string(count)
+            + " occurrences)";
+    }
+
+    // Show diff preview and prompt
+    std::cerr
+        << "\n[tool] edit_file: " << path
+        << "\n--- old ---\n" << old_string
+        << "\n--- new ---\n" << new_string
+        << "\n[y/n]> " << std::flush;
+    std::string answer;
+    std::getline(std::cin, answer);
+    if (answer.empty()
+        or (answer[0] != 'y' and answer[0] != 'Y'))
+    {
+        return "Edit skipped by user";
+    }
+
+    // Apply the replacement
+    contents.replace(
+        found_pos, old_string.size(), new_string);
+
+    // Write back
+    std::ofstream out(path);
+    if (not out.is_open()) {
+        return "Error: Cannot write file: " + path;
+    }
+    out << contents;
+    if (not out.good()) {
+        return "Error: Write failed";
+    }
+
+    return "Applied edit to " + path;
+}
+
+std::string dispatch_tool(
+    std::string const & name,
+    nlohmann::json const & args)
+{
+    if (name == "bash") {
+        return execute_bash(
+            args["command"].get<std::string>());
+    }
+    if (name == "read_file") {
+        return execute_read_file(args);
+    }
+    if (name == "write_file") {
+        return execute_write_file(args);
+    }
+    if (name == "edit_file") {
+        return execute_edit_file(args);
+    }
+    return "Error: unknown tool: " + name;
 }
 
 } // anonymous namespace
@@ -321,13 +593,15 @@ do_send_message(
             for (auto const & tc :
                  message["tool_calls"])
             {
+                auto name =
+                    tc["function"]["name"]
+                        .get<std::string>();
                 auto args = nlohmann::json::parse(
                     tc["function"]["arguments"]
                         .get<std::string>());
-                auto cmd =
-                    args["command"].get<std::string>();
 
-                auto output = execute_bash(cmd);
+                auto output =
+                    dispatch_tool(name, args);
                 std::cerr << output << std::endl;
 
                 messages.push_back(
