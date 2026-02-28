@@ -27,7 +27,6 @@ struct CommandLineArgs
     std::optional<ModelId> model;
     std::optional<SystemPrompt> system_prompt;
     std::optional<MaxTokens> max_tokens;
-    std::optional<Temperature> temperature;
     ShowConfig show_config;
     ShowHelp help;
 };
@@ -39,7 +38,6 @@ struct CommandLineArgs
  *   -m, --model <id>          Model ID override
  *   -s, --system-prompt <text> System prompt
  *   -t, --max-tokens <n>      Max response tokens
- *   --temperature <value>      LLM temperature (0.0-2.0)
  *   --show-config              Display resolved config and exit
  *   -h, --help                 Show help
  */

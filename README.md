@@ -4,7 +4,7 @@ A complete, working C++ chat application using the OpenRouter API. This is your 
 
 **Workshop students: [start here — install Docker, download the image, and build the project](docs/student-setup.md).**
 
-For historical lab checkouts, use the [refreshed workshop checkpoints](docs/workshop-checkpoints.md) (`new-lab2` through `new-lab6`).
+For historical lab checkouts, use the [refreshed workshop checkpoints](docs/workshop-checkpoints.md) (`workshop-lab0` through `workshop-lab6`).
 
 The workshop uses a prebuilt image hosted in this project's GitHub Packages.
 Students need Docker and Git on their computers; the C++ build tools are included

@@ -19,10 +19,6 @@ default_value="anthropic/claude-sonnet-4"
 description=std::uint32_t; <=>, positive
 default_value=4096u
 
-# Temperature for LLM response randomness (0.0 to 2.0)
-[class Temperature]
-description=float
-
 # System prompt for LLM instructions
 [class SystemPrompt]
 description=std::string; <=>
@@ -52,18 +48,3 @@ description=std::string; <=>
 # Assistant response text
 [class AssistantResponse]
 description=std::string; <=>
-
-# Number of tokens in the prompt
-[class PromptTokens]
-description=std::uint32_t; +, <=>
-default_value=0u
-
-# Number of tokens in the completion
-[class CompletionTokens]
-description=std::uint32_t; +, <=>
-default_value=0u
-
-# Total number of tokens used
-[class TotalTokens]
-description=std::uint32_t; +, <=>
-default_value=0u

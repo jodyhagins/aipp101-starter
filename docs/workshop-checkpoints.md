@@ -1,22 +1,59 @@
-# Refreshed workshop checkpoints
+# Workshop exercise checkpoints
 
-The `new-lab2` through `new-lab6` tags provide the historical lab checkpoints
-with the preinstalled workshop dependencies and committed Atlas v2 generated
-headers. Use these tags with the `workshop` preset and the workshop-v1 image.
-The original `lab*` tags and commits remain available.
+Use `workshop-lab0` through `workshop-lab6` as the **starting points** for the
+exercises. Each coding exercise is unfinished at its own checkpoint and complete
+at the next. `workshop-complete` contains the completed lab 6 solution.
 
-## Student checkout commands
+The earlier `new-lab*` series had incorrect exercise boundaries: `new-lab2`
+already included temperature and AGENTS.md loading, `new-lab5` already included
+the agent loop, and `new-lab6` already included specialized tools. Those published
+tags remain unchanged; use the `workshop-*` tags below for teaching.
 
-After the instructor publishes the refreshed history and tags, run these
-commands on your computer from the project directory. Commit or stash any
-work you want to keep before switching checkpoints.
+## What is implemented at each checkpoint?
+
+| Start here | Original source state | Already implemented | Exercise to do |
+| --- | --- | --- | --- |
+| `workshop-lab0` | `d8c32d1999a3` (original `lab0`) | Base chat application | Explore tokens and prompts; no application code change |
+| `workshop-lab1` | `d8c32d1999a3` (original `lab1`) | Base chat application | Talk to the model; no application code change |
+| `workshop-lab2` | `d8c32d1999a3` (original `lab2`) | Base chat application | Add temperature, AGENTS.md loading, and `/usage` |
+| `workshop-lab3` | `534b3cb0cc3e` (original `lab3`) | All three lab 2 features | Perform tool calls manually through prompting |
+| `workshop-lab4` | `872904489bfc` (original `lab4`) | Lab 2 features; no API tool definitions | Add API tool definitions and display tool calls |
+| `workshop-lab5` | `e02585c7c19e` | API tool definitions and display; no automatic execution | Implement the agent loop with bash execution |
+| `workshop-lab6` | `c6ee23bc870d` (original `lab5`) | Agent loop with bash; no specialized tools | Add read_file, write_file, and edit_file |
+| `workshop-complete` | `153ed9d81326` | All lab 6 tools and the subsequent GCC warning fix | Review the completed solution |
+
+Labs 0 and 1 are exploratory, so they share the lab 2 starting source tree.
+Lab 3 is a manual prompting exercise: its AGENTS.md and helper script are
+student-created artifacts, not an additional C++ feature. The lab 4 checkpoint
+has the same application source as lab 3 and adds the lab 4 instructions.
+
+`e341939` is a partial lab 2 solution, not a lab 2 starting point. It appears
+between the lab 2 and lab 3 checkpoints as an untagged intermediate commit.
+The old `lab5` and `lab6` tag names also identify later source states than the
+corresponding exercises require; this table uses the actual exercise boundaries.
+
+## Enter the environment
+
+With Docker running, from a terminal on your computer (Ubuntu/WSL on Windows),
+enter your existing checkout. Students without a checkout first run:
 
 ```bash
-git switch main
-git pull --ff-only
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/jodyhagins/aipp101-starter.git
+cd aipp101-starter
+```
+
+Then, from the checkout:
+
+```bash
+git remote set-url origin https://github.com/jodyhagins/aipp101-starter.git
 git fetch origin --tags
-git switch --detach new-lab2
-./scripts/workshop.sh "$WORKSHOP_IMAGE"
+git switch --detach workshop-lab2
+export WORKSHOP_IMAGE='ghcr.io/jodyhagins/aipp101-starter/workshop@sha256:d6a8c8324c2e3c6a39994ea42daf59a41af9bae16e480052ea112b626efdd028'
+docker pull "$WORKSHOP_IMAGE"
+./scripts/workshop.sh "$WORKSHOP_IMAGE" \
+  env 'PS1=\[\e[36m\]student@\h:\w\$ \[\e[0m\]' bash --norc -i
 ```
 
 Inside the container:
@@ -25,77 +62,70 @@ Inside the container:
 cmake --preset workshop && cmake --build --preset workshop && ctest --preset workshop
 ```
 
-For another checkpoint, exit the container shell, run
-`git switch --detach new-lab3` (or the tag the instructor specifies) on your
-computer, and reopen the workshop shell. Keep `.build` for incremental builds.
-All shells mounting the same checkout see the switch immediately.
+The installed Atlas and all third-party dependencies come from the existing
+workshop-v1 image. No image rebuild is required. All generated headers are
+committed at each checkpoint.
 
-## Commit mapping
+## Advance to the next exercise
 
-`new-lab2` deliberately uses `e341939`, as requested for this refreshed series.
-The original `lab2` tag points to `d8c32d1`, an earlier source state without the
-existing temperature and AGENTS.md features. The original `lab0` and `lab1`
-checkpoints are outside this refresh.
+Save any student work you want to keep before changing checkpoints. Git changes
+affect the host checkout and every container that mounts it immediately.
 
-| Original commit | Rebuilt commit | New tag |
-| --- | --- | --- |
-| `64eb60ae50e0` | `026ed1efcc5c` | — |
-| `e341939975d7` | `bc5cd3dc8ba0` | `new-lab2` |
-| `534b3cb0cc3e` | `45fa71af7518` | `new-lab3` |
-| `872904489bfc` | `ae8fd8d0035e` | `new-lab4` |
-| `e02585c7c19e` | `446db15f0fa9` | — |
-| `28afb08810a4` | `76915cca18d2` | — |
-| `c6ee23bc870d` | `a6ba2821a92d` | `new-lab5` |
-| `88514783793c` | `2f520eca43a2` | `new-lab6` |
-| `9c641774a8e9` | `37374bb96509` | — |
-| `156d52e46b30` | `4a9d2a4273cb` | — |
-| `153ed9d81326` | `765c46782cba` | — |
+These commands can run **inside the container**, because origin now uses HTTPS:
 
-## History and validation
-
-The series starts on top of the previous main tip, `153ed9d81326`. Its first
-commit restores the source state immediately before `e341939` and carries the
-prebuilt environment setup back to that checkpoint. Each subsequent original
-commit is replayed in order, with generated headers recreated by the image.
-The original environment-setup commit is retained as an empty replay because
-its changes are already present in the baseline. Commit messages record the
-original source SHA and Atlas SHA.
-
-All 11 reconstructed checkpoints passed the following using the existing
-workshop image with Docker networking disabled:
-
-- Configure with the installed dependencies and no populated `_deps` directory.
-- Build and CTest using the `workshop` preset (GCC, Debug).
-- Run the chat application with `--help`.
-- Force a second Atlas generation and verify identical hashes for all three headers.
-- Run an incremental build and verify Ninja reports no work to do.
-
-The source-tree audit confirmed that each checkpoint matches its original
-except for the carried environment files and regenerated headers. At the end
-of the replay, only the three generated headers differ from the previous main
-tip; this guide and its README link are added afterward.
-
-Atlas commit: `96ebb2bcc86fb25b48c59b819c1dda522d645c32`.
-The local image used for verification was:
-
-```text
-ghcr.io/jodyhagins/aipp101-starter/workshop@sha256:d6a8c8324c2e3c6a39994ea42daf59a41af9bae16e480052ea112b626efdd028
+```bash
+git fetch origin --tags
+git switch --detach workshop-lab3
+cmake --preset workshop && cmake --build --preset workshop && ctest --preset workshop
 ```
 
-This validates the workshop preset in the local image. It does not claim a
-new run of the entire compiler matrix or verification on both architectures.
-
-## Publishing the series
-
-The local `workshop-atlas-refresh` branch descends directly from the previous
-`main`, so it can be integrated with a fast-forward merge. Publish the new tags
-explicitly; no force push or replacement of old tags is needed.
+Choose `workshop-lab4`, `workshop-lab5`, `workshop-lab6`, or `workshop-complete`
+as directed by the instructor. At a tag, fetch and switch to a checkpoint;
+`git pull` is for updating a branch. To update main inside the container:
 
 ```bash
 git switch main
-git merge --ff-only workshop-atlas-refresh
-git push --atomic origin main new-lab2 new-lab3 new-lab4 new-lab5 new-lab6
+git pull --ff-only
 ```
 
-If main has advanced independently, integrate those changes before publishing.
-Do not squash the series: its intermediate commits are the student checkpoints.
+HTTPS fetching from this public repository works with the launcher's numeric
+UID. The earlier SSH error (`No user exists for uid 501`) is specific to using
+SSH without a matching container user entry. The instructor can retain SSH for
+pushes from the host by running this once in the checkout:
+
+```bash
+git remote set-url --push origin git@github.com:jodyhagins/aipp101-starter.git
+```
+
+## Verification and publication
+
+The corrected series appends to `94749e2d9a39`, without rewriting published
+commits or moving existing tags. For each historical source state, the build
+setup is carried forward and Atlas regenerates the committed headers. Original
+application source and tests are preserved apart from generated headers.
+Lab instructions use the `workshop` build preset inside the image.
+
+Verification covers offline configure/build/CTest, CLI and REPL checks of the
+lab 2 feature boundaries, repeatable header generation, and an incremental
+build with no work to do. The checkpoint audit additionally compares source
+against the original commits and checks that API tools, the agent loop, and
+specialized tools appear at the correct boundaries:
+
+```bash
+python3 scripts/verify-workshop-checkpoints.py
+```
+
+Validation uses Atlas `96ebb2bcc86fb25b48c59b819c1dda522d645c32` and the local
+workshop image. It does not constitute testing the entire compiler matrix or
+both image architectures.
+
+The instructor can publish the prepared local branch from the host terminal:
+
+```bash
+git switch main
+git merge --ff-only workshop-exercise-checkpoints
+git push --atomic origin main workshop-lab0 workshop-lab1 workshop-lab2 workshop-lab3 workshop-lab4 workshop-lab5 workshop-lab6 workshop-complete
+```
+
+If main advances independently, integrate those changes before publication.
+Keep the intermediate commits: they are the student exercise checkpoints.

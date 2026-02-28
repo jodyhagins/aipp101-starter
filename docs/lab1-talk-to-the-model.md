@@ -25,13 +25,13 @@ Or select a for-pay model if you want, and have money in your OpenRouter account
 ### Build and run
 
 ```bash
-cmake --preset debug && cmake --build --preset debug
+cmake --preset workshop && cmake --build --preset workshop
 ```
 
 Run the chat app:
 
 ```bash
-.build/debug-clang/src/wjh/apps/chat/chat_app
+.build/workshop/src/wjh/apps/chat/chat_app
 ```
 
 You should see a welcome banner with the model name. Type `/help` to see the

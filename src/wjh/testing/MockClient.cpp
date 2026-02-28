@@ -11,7 +11,7 @@ namespace testing {
 MockClient::
 ~MockClient() = default;
 
-wjh::chat::Result<wjh::chat::ChatResponse>
+wjh::chat::Result<wjh::chat::AssistantResponse>
 MockClient::
 do_send_message(wjh::chat::conversation::Conversation const & conversation)
 {

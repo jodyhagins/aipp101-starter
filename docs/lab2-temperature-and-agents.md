@@ -73,7 +73,7 @@ API request JSON: {"temperature": 0.7, ...}
 Add a `Temperature` strong type (float, no special features needed) and wire
 it through the full stack:
 
-1. Define the type in `types.atlas` and regenerate `types_gen.hpp` (cmake --build --preset debug)
+1. Define the type in `types.atlas` and regenerate `types_gen.hpp` (cmake --build --preset workshop)
 2. Add `--temperature <value>` to CLI parsing. Validate it is a valid float.
 3. Add `temperature` to `Config` and resolve it: CLI > `TEMPERATURE` env > none.
 4. Show it in `print_config` when present.
@@ -84,7 +84,7 @@ it through the full stack:
    `OpenRouterClientConfig` (they will fail to compile until you add the new
    field).
 9. Add new tests for temperature parsing, config resolution, and validation.
-10. All tests pass: `ctest --preset debug`
+10. All tests pass: `ctest --preset workshop`
 
 Hint: look at how `system_prompt` and `max_tokens` are handled -- temperature
 follows the same pattern, but it is a float parsed with `std::strtof` instead
@@ -117,7 +117,7 @@ of `std::from_chars`.
    [class Temperature]
    description=float
    ```
-   Then regenerate: `cmake --build --preset debug` (the build system runs the
+   Then regenerate: `cmake --build --preset workshop` (the build system runs the
    atlas generator automatically).
 
 2. **Work bottom-up.** Add the field to `CommandLineArgs`, then `Config`, then
@@ -166,7 +166,7 @@ description=float
 
 Build to regenerate `types_gen.hpp`:
 ```bash
-cmake --build --preset debug
+cmake --build --preset workshop
 ```
 
 It should compile (new type exists but nothing uses it yet).
@@ -348,7 +348,7 @@ a full set of env guards.
 
 Build and run tests:
 ```bash
-cmake --build --preset debug && ctest --preset debug
+cmake --build --preset workshop && ctest --preset workshop
 ```
 
 #### Step 10: Add new tests
@@ -752,7 +752,7 @@ TEST_CASE("append_agents_file: empty file leaves "
 
 Build and run:
 ```bash
-cmake --build --preset debug && ctest --preset debug
+cmake --build --preset workshop && ctest --preset workshop
 ```
 
 ---
@@ -848,7 +848,7 @@ Create a `TokenUsage` struct and a `ChatResponse` that bundles
 Change `IClient::send_message` to return
 `Result<ChatResponse>`, update `OpenRouterClient` to extract `json["usage"]`.
 In `ChatLoop`, store usage per turn, implement `/usage` and `/usage all`.
-All tests pass: `ctest --preset debug`
+All tests pass: `ctest --preset workshop`
 
 
 ### Choose your path: Medium -- guided implementation
@@ -1054,8 +1054,8 @@ compare the per-turn costs to your first run.
 
 Before moving on, make sure:
 
-- [ ] `cmake --build --preset debug` compiles with no warnings
-- [ ] `ctest --preset debug` -- all tests pass
+- [ ] `cmake --build --preset workshop` compiles with no warnings
+- [ ] `ctest --preset workshop` -- all tests pass
 - [ ] Temperature: `--temperature 0.5 --show-config` shows it, `--temperature
   notanumber` gives a clear error, `TEMPERATURE=0.7` in `.env` works
 - [ ] `AGENTS.md` in the current directory gets loaded into the system prompt;
