@@ -10,6 +10,10 @@
 #include "wjh/chat/stdfmt.hpp"
 #include "wjh/chat/conversation/Message.hpp"
 
+#include <array>
+#include <cstdio>
+#include <iostream>
+
 namespace {
 
 constexpr bool DEBUG_COMMS = false;
@@ -46,6 +50,42 @@ nlohmann::json make_tools_json()
                  "The bash command to execute"}}}}},
             {"required", {"command"}}}}}}
     }};
+}
+
+std::string execute_bash(std::string const & command)
+{
+    std::cerr << "\n[tool] bash: " << command
+              << "\n[y/n]> " << std::flush;
+    std::string answer;
+    std::getline(std::cin, answer);
+    if (answer.empty()
+        or (answer[0] != 'y' and answer[0] != 'Y'))
+    {
+        return "Command skipped by user";
+    }
+
+    std::string full_cmd = command + " 2>&1";
+    std::array<char, 4096> buffer;
+    std::string result;
+
+    auto * pipe = popen(full_cmd.c_str(), "r");
+    if (not pipe) {
+        return "Error: failed to execute command";
+    }
+
+    while (fgets(buffer.data(), buffer.size(), pipe)) {
+        result += buffer.data();
+        if (result.size() > 100'000) {
+            result += "\n... [truncated at 100KB]";
+            break;
+        }
+    }
+
+    auto status = pclose(pipe);
+    result +=
+        "\n[exit code: "
+        + std::to_string(WEXITSTATUS(status)) + "]";
+    return result;
 }
 
 } // anonymous namespace
@@ -186,22 +226,20 @@ parse_response(nlohmann::json const & json) const
     }
 }
 
-Result<ChatResponse>
+Result<nlohmann::json>
 OpenRouterClient::
-do_send_message(conversation::Conversation const & conversation)
+send_api_request(nlohmann::json const & request)
 {
-    auto request = build_request(conversation);
-    debug_json("request", request);
-    auto request_body = request.dump();
-
     HttpHeaders headers{
         {HeaderName{"Authorization"},
-         HeaderValue{"Bearer " + json_value(config_.api_key)}},
-        {HeaderName{"Content-Type"}, HeaderValue{"application/json"}}};
+         HeaderValue{
+             "Bearer " + json_value(config_.api_key)}},
+        {HeaderName{"Content-Type"},
+         HeaderValue{"application/json"}}};
 
     auto result = http_client_.post(
         HttpPath{"/api/v1/chat/completions"},
-        HttpBody{request_body},
+        HttpBody{request.dump()},
         headers);
     if (not result) {
         return make_error("{}", result.error());
@@ -209,21 +247,20 @@ do_send_message(conversation::Conversation const & conversation)
 
     auto const & response = *result;
 
-    // Check for HTTP errors
     if (response.status != HttpStatusCode{200}) {
         try {
-            auto error_json = nlohmann::json::parse(json_value(response.body));
-            if (error_json.contains("error")) {
-                auto const & error = error_json["error"];
-                if (error.contains("message")) {
-                    return make_error(
-                        "API error ({}): {}",
-                        json_value(response.status),
-                        error["message"].get<std::string>());
-                }
+            auto err = nlohmann::json::parse(
+                json_value(response.body));
+            if (err.contains("error")
+                and err["error"].contains("message"))
+            {
+                return make_error(
+                    "API error ({}): {}",
+                    json_value(response.status),
+                    err["error"]["message"]
+                        .get<std::string>());
             }
         } catch (nlohmann::json::exception const &) {
-            // Fall through to generic error
         }
         return make_error(
             "API error ({}): {}",
@@ -231,20 +268,99 @@ do_send_message(conversation::Conversation const & conversation)
             json_value(response.body));
     }
 
-    // Parse successful response
-    nlohmann::json response_json;
     try {
-        response_json =
-            nlohmann::json::parse(json_value(response.body));
+        return nlohmann::json::parse(
+            json_value(response.body));
     } catch (nlohmann::json::parse_error const & e) {
         return make_error(
             "Failed to parse response JSON: {}",
             e.what());
     }
+}
 
-    debug_json("response", response_json);
+Result<ChatResponse>
+OpenRouterClient::
+do_send_message(
+    conversation::Conversation const & conversation)
+{
+    auto messages =
+        convert_messages_to_openai(conversation);
+    auto const tools = make_tools_json();
 
-    return parse_response(response_json);
+    for (int i = 0; i < 20; ++i) {
+        auto request = nlohmann::json{
+            {"model", json_value(config_.model)},
+            {"max_tokens",
+             json_value(config_.max_tokens)},
+            {"messages", messages},
+            {"tools", tools}};
+
+        if (config_.temperature) {
+            request["temperature"] =
+                json_value(*config_.temperature);
+        }
+
+        debug_json("request", request);
+
+        auto result = send_api_request(request);
+        if (not result) {
+            return make_error("{}", result.error());
+        }
+
+        debug_json("response", *result);
+
+        auto const & choice = (*result)["choices"][0];
+        auto const & message = choice["message"];
+
+        // Tool calls: execute and loop
+        if (message.contains("tool_calls")
+            and not message["tool_calls"].empty())
+        {
+            messages.push_back(message);
+
+            for (auto const & tc :
+                 message["tool_calls"])
+            {
+                auto args = nlohmann::json::parse(
+                    tc["function"]["arguments"]
+                        .get<std::string>());
+                auto cmd =
+                    args["command"].get<std::string>();
+
+                auto output = execute_bash(cmd);
+                std::cerr << output << std::endl;
+
+                messages.push_back(
+                    {{"role", "tool"},
+                     {"tool_call_id", tc["id"]},
+                     {"content", output}});
+            }
+            continue;
+        }
+
+        // Text content: return to user
+        if (message.contains("content")
+            and not message["content"].is_null()
+            and not message["content"]
+                        .get<std::string>()
+                        .empty())
+        {
+            return parse_response(*result);
+        }
+
+        // Empty/null content: nudge the model
+        if (message.contains("content")) {
+            messages.push_back(message);
+        }
+        messages.push_back(
+            {{"role", "user"},
+             {"content",
+              "Please use your tools or respond "
+              "with text."}});
+    }
+
+    return make_error(
+        "Agent loop exceeded 20 iterations");
 }
 
 } // namespace wjh::chat::client
