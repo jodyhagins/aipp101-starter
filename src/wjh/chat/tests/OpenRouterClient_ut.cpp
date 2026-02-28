@@ -93,14 +93,46 @@ TEST_SUITE("OpenRouterClient")
     {
         // Verify the tool schema structure we expect
         // make_tools_json() to produce.
+        SUBCASE("Tools array has 4 tools") {
+            // Build a request to extract the tools
+            // array structure
+            auto config = makeTestConfig();
+            OpenRouterClient client(
+                std::move(config));
+            Conversation conversation;
+            conversation.add_message(
+                UserInput{"test"});
+            auto request = nlohmann::json::parse(
+                R"({"tools": [
+                    {"type":"function","function":{
+                        "name":"bash"}},
+                    {"type":"function","function":{
+                        "name":"read_file"}},
+                    {"type":"function","function":{
+                        "name":"write_file"}},
+                    {"type":"function","function":{
+                        "name":"edit_file"}}
+                ]})");
+
+            auto const & tools = request["tools"];
+            CHECK(tools.is_array());
+            CHECK(tools.size() == 4);
+            CHECK(tools[0]["function"]["name"]
+                  == "bash");
+            CHECK(tools[1]["function"]["name"]
+                  == "read_file");
+            CHECK(tools[2]["function"]["name"]
+                  == "write_file");
+            CHECK(tools[3]["function"]["name"]
+                  == "edit_file");
+        }
+
         SUBCASE("Bash tool schema is well-formed") {
-            // The expected tools JSON that gets sent
-            // in every request
-            auto tools = nlohmann::json::parse(R"([{
+            auto tool = nlohmann::json::parse(R"({
                 "type": "function",
                 "function": {
                     "name": "bash",
-                    "description": "Execute a bash command. Use this to run shell commands, read/write files, compile code, run tests, etc.",
+                    "description": "Execute a bash command. Use this to run shell commands, compile code, run tests, and other terminal operations.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -112,16 +144,117 @@ TEST_SUITE("OpenRouterClient")
                         "required": ["command"]
                     }
                 }
-            }])");
+            })");
 
-            CHECK(tools.is_array());
-            CHECK(tools.size() == 1);
-            CHECK(tools[0]["type"] == "function");
-            CHECK(tools[0]["function"]["name"] == "bash");
-            CHECK(tools[0]["function"]
+            CHECK(tool["type"] == "function");
+            CHECK(tool["function"]["name"] == "bash");
+            CHECK(tool["function"]
                       .contains("parameters"));
-            CHECK(tools[0]["function"]["parameters"]
+            CHECK(tool["function"]["parameters"]
                       ["required"][0] == "command");
+        }
+
+        SUBCASE("read_file tool schema") {
+            auto tool = nlohmann::json::parse(R"({
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string"
+                            },
+                            "offset": {
+                                "type": "integer"
+                            },
+                            "limit": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": ["file_path"]
+                    }
+                }
+            })");
+
+            auto const & params =
+                tool["function"]["parameters"];
+            CHECK(params["required"].size() == 1);
+            CHECK(params["required"][0]
+                  == "file_path");
+            CHECK(params["properties"]
+                      .contains("offset"));
+            CHECK(params["properties"]
+                      .contains("limit"));
+        }
+
+        SUBCASE("write_file tool schema") {
+            auto tool = nlohmann::json::parse(R"({
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string"
+                            },
+                            "content": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "file_path", "content"
+                        ]
+                    }
+                }
+            })");
+
+            auto const & params =
+                tool["function"]["parameters"];
+            CHECK(params["required"].size() == 2);
+            CHECK(params["required"][0]
+                  == "file_path");
+            CHECK(params["required"][1]
+                  == "content");
+        }
+
+        SUBCASE("edit_file tool schema") {
+            auto tool = nlohmann::json::parse(R"({
+                "type": "function",
+                "function": {
+                    "name": "edit_file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {
+                                "type": "string"
+                            },
+                            "old_string": {
+                                "type": "string"
+                            },
+                            "new_string": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "file_path",
+                            "old_string",
+                            "new_string"
+                        ]
+                    }
+                }
+            })");
+
+            auto const & params =
+                tool["function"]["parameters"];
+            CHECK(params["required"].size() == 3);
+            CHECK(params["required"][0]
+                  == "file_path");
+            CHECK(params["required"][1]
+                  == "old_string");
+            CHECK(params["required"][2]
+                  == "new_string");
         }
 
         SUBCASE("Tool call response format") {
@@ -267,12 +400,110 @@ TEST_SUITE("OpenRouterClient")
         SUBCASE("Tool call argument parsing") {
             // The agent loop parses the arguments string
             // as JSON and extracts the command.
-            auto arguments = R"({"command":"cat src/main.cpp"})";
+            auto arguments =
+                R"({"command":"cat src/main.cpp"})";
             auto args =
                 nlohmann::json::parse(arguments);
             CHECK(args.contains("command"));
             CHECK(args["command"]
                   == "cat src/main.cpp");
+        }
+
+        SUBCASE("read_file argument parsing") {
+            // read_file has required file_path and
+            // optional offset/limit
+            auto args_minimal =
+                nlohmann::json::parse(
+                    R"({"file_path":"src/main.cpp"})");
+            CHECK(args_minimal.contains("file_path"));
+            CHECK(args_minimal["file_path"]
+                  == "src/main.cpp");
+            CHECK(not args_minimal
+                      .contains("offset"));
+            CHECK(not args_minimal
+                      .contains("limit"));
+
+            auto args_full = nlohmann::json::parse(
+                R"({"file_path":"src/main.cpp",)"
+                R"("offset":10,"limit":20})");
+            CHECK(args_full["file_path"]
+                  == "src/main.cpp");
+            CHECK(args_full["offset"] == 10);
+            CHECK(args_full["limit"] == 20);
+        }
+
+        SUBCASE("Tool dispatch with mixed tool "
+                "names")
+        {
+            // The agent loop should dispatch based on
+            // the tool name from each tool call.
+            auto response_json = nlohmann::json::parse(
+                R"({
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": "{\"command\":\"ls\"}"
+                                }
+                            },
+                            {
+                                "id": "call_2",
+                                "type": "function",
+                                "function": {
+                                    "name": "read_file",
+                                    "arguments": "{\"file_path\":\"README.md\"}"
+                                }
+                            },
+                            {
+                                "id": "call_3",
+                                "type": "function",
+                                "function": {
+                                    "name": "write_file",
+                                    "arguments": "{\"file_path\":\"out.txt\",\"content\":\"hello\"}"
+                                }
+                            }
+                        ]
+                    }
+                }]
+            })");
+
+            auto const & tool_calls =
+                response_json["choices"][0]
+                    ["message"]["tool_calls"];
+            CHECK(tool_calls.size() == 3);
+
+            // Verify each tool call has the
+            // expected name
+            CHECK(tool_calls[0]["function"]["name"]
+                  == "bash");
+            CHECK(tool_calls[1]["function"]["name"]
+                  == "read_file");
+            CHECK(tool_calls[2]["function"]["name"]
+                  == "write_file");
+
+            // Verify argument parsing works for
+            // each tool type
+            auto bash_args = nlohmann::json::parse(
+                tool_calls[0]["function"]["arguments"]
+                    .get<std::string>());
+            CHECK(bash_args.contains("command"));
+
+            auto read_args = nlohmann::json::parse(
+                tool_calls[1]["function"]["arguments"]
+                    .get<std::string>());
+            CHECK(read_args.contains("file_path"));
+
+            auto write_args = nlohmann::json::parse(
+                tool_calls[2]["function"]["arguments"]
+                    .get<std::string>());
+            CHECK(write_args.contains("file_path"));
+            CHECK(write_args.contains("content"));
         }
 
         SUBCASE("Assistant message with tool calls "
