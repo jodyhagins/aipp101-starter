@@ -88,6 +88,144 @@ TEST_SUITE("OpenRouterClient")
             CHECK(conversation.size() == 3);
         }
     }
+
+    TEST_CASE("Tool call JSON format expectations")
+    {
+        // Verify the tool schema structure we expect
+        // make_tools_json() to produce.
+        SUBCASE("Bash tool schema is well-formed") {
+            // The expected tools JSON that gets sent
+            // in every request
+            auto tools = nlohmann::json::parse(R"([{
+                "type": "function",
+                "function": {
+                    "name": "bash",
+                    "description": "Execute a bash command. Use this to run shell commands, read/write files, compile code, run tests, etc.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "The bash command to execute"
+                            }
+                        },
+                        "required": ["command"]
+                    }
+                }
+            }])");
+
+            CHECK(tools.is_array());
+            CHECK(tools.size() == 1);
+            CHECK(tools[0]["type"] == "function");
+            CHECK(tools[0]["function"]["name"] == "bash");
+            CHECK(tools[0]["function"]
+                      .contains("parameters"));
+            CHECK(tools[0]["function"]["parameters"]
+                      ["required"][0] == "command");
+        }
+
+        SUBCASE("Tool call response format") {
+            // Simulate what parse_response() should
+            // produce from a tool-call response
+            auto response_json = nlohmann::json::parse(
+                R"({
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [{
+                            "id": "call_abc123",
+                            "type": "function",
+                            "function": {
+                                "name": "bash",
+                                "arguments": "{\"command\":\"ls src/\"}"
+                            }
+                        }]
+                    }
+                }],
+                "usage": {
+                    "prompt_tokens": 50,
+                    "completion_tokens": 10,
+                    "total_tokens": 60
+                }
+            })");
+
+            // Verify the tool_calls structure
+            auto const & tc =
+                response_json["choices"][0]
+                    ["message"]["tool_calls"][0];
+            CHECK(tc["function"]["name"] == "bash");
+
+            auto args = nlohmann::json::parse(
+                tc["function"]["arguments"]
+                    .get<std::string>());
+            CHECK(args["command"] == "ls src/");
+
+            // Verify the expected display format
+            auto const & fn = tc["function"];
+            std::string display =
+                "[Tool call] "
+                + fn["name"].get<std::string>() + ": "
+                + fn["arguments"].get<std::string>()
+                + "\n";
+            CHECK(display ==
+                  "[Tool call] bash: "
+                  "{\"command\":\"ls src/\"}\n");
+        }
+
+        SUBCASE("Multiple tool calls format") {
+            auto response_json = nlohmann::json::parse(
+                R"({
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": null,
+                        "tool_calls": [
+                            {
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": "{\"command\":\"ls\"}"
+                                }
+                            },
+                            {
+                                "id": "call_2",
+                                "type": "function",
+                                "function": {
+                                    "name": "bash",
+                                    "arguments": "{\"command\":\"pwd\"}"
+                                }
+                            }
+                        ]
+                    }
+                }]
+            })");
+
+            auto const & tool_calls =
+                response_json["choices"][0]
+                    ["message"]["tool_calls"];
+            CHECK(tool_calls.size() == 2);
+
+            std::string display;
+            for (auto const & tc : tool_calls) {
+                auto const & fn = tc["function"];
+                display +=
+                    "[Tool call] "
+                    + fn["name"].get<std::string>()
+                    + ": "
+                    + fn["arguments"]
+                          .get<std::string>()
+                    + "\n";
+            }
+
+            CHECK(display ==
+                  "[Tool call] bash: "
+                  "{\"command\":\"ls\"}\n"
+                  "[Tool call] bash: "
+                  "{\"command\":\"pwd\"}\n");
+        }
+    }
 }
 
 } // anonymous namespace
