@@ -23,17 +23,17 @@ for model, max-tokens, and system-prompt. You are extending that pattern.
 
 ## Background: What is temperature?
 
-Temperature is a float (typically 0.0 to 2.0) that controls how the model
-samples from its next-token probability distribution:
+Temperature is a float (0.0 to 2.0) that controls how the model samples
+from its next-token probability distribution:
 
-- **Temperature 0** -- The model almost always picks the highest-probability
-  token. Output is near-deterministic.
-- **Temperature ~0.7** -- A good default for most tasks. Some variety, still
-  coherent.
-- **Temperature 1.0** -- The raw distribution. More creative, sometimes
-  surprising.
-- **Temperature > 1.0** -- The distribution flattens. Unlikely tokens get a
-  real shot. Output gets wild.
+| Temperature | Behavior |
+|------------|----------|
+| **0.0** | Deterministic -- always picks the highest-probability token. Same input = same output every time. Best for factual Q&A, code generation, structured output. |
+| **0.7** | Focused but natural -- slight variety while staying coherent. The most common "production" default for assistants and chatbots. |
+| **1.0** | OpenRouter's default -- uses the model's raw probability distribution as-is. Good balance of creativity and coherence. |
+| **2.0** | Maximum randomness -- the distribution is heavily flattened, so unlikely tokens get a real shot. Outputs get creative, surprising, and often incoherent. |
+
+If you omit temperature from the request, OpenRouter defaults to 1.0.
 
 The OpenRouter API accepts temperature as an optional float field in the
 request JSON.
