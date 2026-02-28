@@ -6,6 +6,7 @@
 // ----------------------------------------------------------------------
 #define DOCTEST_CONFIG_ASSERTS_RETURN_VALUES
 #include "wjh/chat/ChatLoop.hpp"
+#include "wjh/chat/TokenUsage.hpp"
 
 #include <sstream>
 
@@ -161,6 +162,151 @@ TEST_SUITE("ChatLoop")
         // conversation (with system prompt) was sent successfully
         auto output = out.str();
         CHECK(output.find("I see your system prompt") != std::string::npos);
+    }
+
+    TEST_CASE("/usage with no data shows message")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+
+        std::istringstream in("/usage\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        CHECK(out.str().find("No usage data recorded.")
+              != std::string::npos);
+    }
+
+    TEST_CASE("/usage after turns shows cumulative totals")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply 1"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{10u},
+                .completion_tokens = CompletionTokens{5u},
+                .total_tokens = TotalTokens{15u}}});
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply 2"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{20u},
+                .completion_tokens = CompletionTokens{8u},
+                .total_tokens = TotalTokens{28u}}});
+
+        std::istringstream in("Hello\nWorld\n/usage\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        auto output = out.str();
+        CHECK(output.find("2 turns") != std::string::npos);
+        CHECK(output.find("30") != std::string::npos); // prompt
+        CHECK(output.find("13") != std::string::npos); // completion
+        CHECK(output.find("43") != std::string::npos); // total
+    }
+
+    TEST_CASE("/usage all shows per-turn breakdown")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply 1"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{10u},
+                .completion_tokens = CompletionTokens{5u},
+                .total_tokens = TotalTokens{15u}}});
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply 2"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{20u},
+                .completion_tokens = CompletionTokens{8u},
+                .total_tokens = TotalTokens{28u}}});
+
+        std::istringstream in("Hello\nWorld\n/usage all\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        auto output = out.str();
+        CHECK(output.find("Per-turn") != std::string::npos);
+        CHECK(output.find("Cumulative") != std::string::npos);
+        CHECK(output.find("10") != std::string::npos);
+        CHECK(output.find("20") != std::string::npos);
+    }
+
+    TEST_CASE("/clear resets usage history")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{10u},
+                .completion_tokens = CompletionTokens{5u},
+                .total_tokens = TotalTokens{15u}}});
+
+        std::istringstream in("Hello\n/clear\n/usage\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        CHECK(out.str().find("No usage data recorded.")
+              != std::string::npos);
+    }
+
+    TEST_CASE("/help lists usage commands")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+
+        std::istringstream in("/help\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        auto output = out.str();
+        CHECK(output.find("/usage") != std::string::npos);
+        CHECK(output.find("/usage all") != std::string::npos);
+    }
+
+    TEST_CASE("Response with no usage field is handled")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+        mock->queue_response(
+            AssistantResponse{"No usage info"});
+
+        std::istringstream in("Hello\n/usage\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        auto output = out.str();
+        CHECK(output.find("No usage info") != std::string::npos);
+        CHECK(output.find("No usage data recorded.")
+              != std::string::npos);
+    }
+
+    TEST_CASE("/usage after single turn shows singular")
+    {
+        auto mock = std::make_unique<testing::MockClient>();
+        mock->queue_response(ChatResponse{
+            .response = AssistantResponse{"Reply"},
+            .usage = TokenUsage{
+                .prompt_tokens = PromptTokens{10u},
+                .completion_tokens = CompletionTokens{5u},
+                .total_tokens = TotalTokens{15u}}});
+
+        std::istringstream in("Hello\n/usage\n/exit\n");
+        std::ostringstream out;
+
+        auto result = run(makeTestConfig(), std::move(mock), in, out);
+
+        CHECK(result == ExitCode::success);
+        auto output = out.str();
+        CHECK(output.find("1 turn)") != std::string::npos);
     }
 }
 

@@ -8,6 +8,7 @@
 #define WJH_CHAT_E1F2A3B4C5D6478890ABCDEF12345678
 
 #include "wjh/chat/Config.hpp"
+#include "wjh/chat/TokenUsage.hpp"
 #include "wjh/chat/client/IClient.hpp"
 #include "wjh/chat/conversation/Conversation.hpp"
 
@@ -17,6 +18,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace wjh::chat {
 
@@ -159,6 +161,7 @@ private:
     Config config_;
     std::unique_ptr<client::IClient> client_;
     conversation::Conversation conversation_;
+    std::vector<TokenUsage> usage_history_;
     std::istream & in_;
     std::ostream & out_;
 };
