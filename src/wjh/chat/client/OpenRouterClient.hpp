@@ -52,7 +52,7 @@ public:
     }
 
 private:
-    Result<AssistantResponse> do_send_message(
+    Result<ChatResponse> do_send_message(
         conversation::Conversation const & conversation) override;
 
     OpenRouterClientConfig config_;
@@ -65,9 +65,10 @@ private:
         conversation::Conversation const & conversation) const;
 
     /**
-     * Parse response from OpenAI format to AssistantResponse.
+     * Parse response from OpenAI format to ChatResponse.
      */
-    Result<AssistantResponse> parse_response(nlohmann::json const & json) const;
+    Result<ChatResponse> parse_response(
+        nlohmann::json const & json) const;
 
     /**
      * Convert messages to OpenAI format.

@@ -10,6 +10,7 @@
 #include "wjh/chat/json_convert.hpp"
 #include "wjh/chat/client/OpenRouterClient.hpp"
 
+#include <format>
 #include <string>
 
 #include <iostream>
@@ -88,7 +89,68 @@ handle_builtin_command(std::string_view cmd)
 
     if (cmd == "/clear") {
         conversation_.clear();
+        usage_history_.clear();
         out_ << "Conversation cleared.\n\n";
+        return CommandResult::handled;
+    }
+
+    if (cmd == "/usage all") {
+        if (usage_history_.empty()) {
+            out_ << "No usage data recorded.\n\n";
+            return CommandResult::handled;
+        }
+
+        out_ << "Per-turn token usage:\n"
+            << std::format(
+                   "  {:>4s}  {:>8s}  {:>10s}  {:>7s}\n",
+                   "Turn", "Prompt", "Completion", "Total");
+
+        auto cumulative = TokenUsage{};
+        for (std::size_t i = 0; i < usage_history_.size(); ++i) {
+            auto const & u = usage_history_[i];
+            out_ << std::format(
+                "  {:>4d}  {:>8d}  {:>10d}  {:>7d}\n",
+                i + 1,
+                json_value(u.prompt_tokens),
+                json_value(u.completion_tokens),
+                json_value(u.total_tokens));
+            cumulative.prompt_tokens += u.prompt_tokens;
+            cumulative.completion_tokens += u.completion_tokens;
+            cumulative.total_tokens += u.total_tokens;
+        }
+
+        out_ << std::format(
+            "\nCumulative: {} prompt + {} completion"
+            " = {} total tokens\n\n",
+            json_value(cumulative.prompt_tokens),
+            json_value(cumulative.completion_tokens),
+            json_value(cumulative.total_tokens));
+        return CommandResult::handled;
+    }
+
+    if (cmd == "/usage") {
+        if (usage_history_.empty()) {
+            out_ << "No usage data recorded.\n\n";
+            return CommandResult::handled;
+        }
+
+        auto cumulative = TokenUsage{};
+        for (auto const & u : usage_history_) {
+            cumulative.prompt_tokens += u.prompt_tokens;
+            cumulative.completion_tokens += u.completion_tokens;
+            cumulative.total_tokens += u.total_tokens;
+        }
+
+        out_ << std::format(
+            "Token usage ({} turn{}):\n"
+            "  Prompt:     {}\n"
+            "  Completion: {}\n"
+            "  Total:      {}\n\n",
+            usage_history_.size(),
+            usage_history_.size() == 1 ? "" : "s",
+            json_value(cumulative.prompt_tokens),
+            json_value(cumulative.completion_tokens),
+            json_value(cumulative.total_tokens));
         return CommandResult::handled;
     }
 
@@ -96,6 +158,8 @@ handle_builtin_command(std::string_view cmd)
         out_ << "Commands:\n"
             << "  /exit, /quit  Exit the chat\n"
             << "  /clear        Clear conversation history\n"
+            << "  /usage        Show cumulative token usage\n"
+            << "  /usage all    Show per-turn token usage\n"
             << "  /help         Show this help\n\n";
         return CommandResult::handled;
     }
@@ -148,9 +212,14 @@ do_process_input(UserInput input)
         return;
     }
 
-    auto const & response = *result;
-    do_display_response(response);
-    conversation_.add_message(response);
+    auto & chat_response = *result;
+
+    if (chat_response.usage) {
+        usage_history_.push_back(*chat_response.usage);
+    }
+
+    do_display_response(chat_response.response);
+    conversation_.add_message(chat_response.response);
 }
 
 void
