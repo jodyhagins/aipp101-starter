@@ -1,11 +1,12 @@
-# Lab 2: Add Temperature & AGENTS.md Support
+# Lab 2: Temperature, AGENTS.md & Token Usage
 
 In Lab 1 you discovered that the model is non-deterministic -- the same prompt
 produces different outputs. But you had no way to *control* that randomness.
 You also saw that the model is eager to follow system prompt instructions, but
-had to pass them on the command line every time.
+had to pass them on the command line every time. And after chatting for a while,
+you had no idea how many tokens you were burning.
 
-In this lab you will add two features to the chat application:
+In this lab you will add three features to the chat application:
 
 1. **Temperature** -- a parameter that controls how "creative" (random) the
    model's output is. You will wire it through the full stack: CLI flag,
@@ -16,8 +17,12 @@ In this lab you will add two features to the chat application:
    lets you configure the model's behavior per-project without typing it on
    the command line every time.
 
-Both features follow the same pattern already established in the codebase
-for model, max-tokens, and system-prompt. You are extending that pattern.
+3. **`/usage` command** -- track token usage across turns and display cumulative
+   or per-turn breakdowns on demand. This teaches you how LLM billing works
+   and how conversation length affects cost.
+
+All three features follow patterns already established in the codebase
+for model, max-tokens, and system-prompt. You are extending those patterns.
 
 ---
 
@@ -362,6 +367,56 @@ Add to `Config_ut.cpp`:
 - CLI temperature overrides env temperature
 - Invalid `TEMPERATURE` in env -- should error
 
+---
+
+## Experiments A: Temperature
+
+Now that temperature is wired up, try it out!
+
+### Freeze it
+
+```bash
+chat_app --temperature 0
+```
+
+Ask the same question three times (with `/clear` between each):
+
+```
+Write a one-paragraph product description for a rubber duck that debugs code.
+```
+
+The responses should be nearly identical. Low temperature = predictable.
+
+### Melt it
+
+```bash
+chat_app --temperature 1.8
+```
+
+Same prompt. The model might get creative. It might get *weird*. It might
+invent words.
+
+### Find the sweet spot
+
+Try the same prompt at 0.3, 0.7, 1.0, and 1.5. Where does it feel most
+natural? Where does it fall apart?
+
+### Temperature via environment
+
+Set it in your `.env` file:
+
+```
+TEMPERATURE=0.5
+```
+
+Run `chat_app --show-config` and verify it shows up. Then override it on the
+command line:
+
+```bash
+chat_app --temperature 0 --show-config
+```
+
+The CLI should win.
 
 ---
 
@@ -702,60 +757,9 @@ cmake --build --preset debug && ctest --preset debug
 
 ---
 
-## Experiments
+## Experiments B: AGENTS.md
 
-Once both features are working, try them out!
-
-### Temperature experiments
-
-#### Freeze it
-
-```bash
-chat_app --temperature 0
-```
-
-Ask the same question three times (with `/clear` between each):
-
-```
-Write a one-paragraph product description for a rubber duck that debugs code.
-```
-
-The responses should be nearly identical. Low temperature = predictable.
-
-#### Melt it
-
-```bash
-chat_app --temperature 1.8
-```
-
-Same prompt. The model might get creative. It might get *weird*. It might
-invent words.
-
-#### Find the sweet spot
-
-Try the same prompt at 0.3, 0.7, 1.0, and 1.5. Where does it feel most
-natural? Where does it fall apart?
-
-#### Temperature via environment
-
-Set it in your `.env` file:
-
-```
-TEMPERATURE=0.5
-```
-
-Run `chat_app --show-config` and verify it shows up. Then override it on the
-command line:
-
-```bash
-chat_app --temperature 0 --show-config
-```
-
-The CLI should win.
-
-### AGENTS.md experiments
-
-#### Create your first AGENTS.md
+### Create your first AGENTS.md
 
 In the project root (where you run `chat_app`), create `AGENTS.md`:
 
@@ -775,7 +779,7 @@ Now run `chat_app` and ask: `Explain how std::vector grows when you push_back.`
 Then delete (or rename) `AGENTS.md` and ask the same question. Notice the
 difference in style and length.
 
-#### Stack with a system prompt
+### Stack with a system prompt
 
 Try using both:
 
@@ -788,14 +792,276 @@ in the prompt? (Use `--show-config` to check.)
 
 ---
 
+## Background: What is token usage?
+
+Every time you send a message to an LLM, the API processes your input as
+**tokens** -- chunks of text roughly 3-4 characters long. The API response
+includes a `usage` object that tells you exactly how many tokens were consumed:
+
+| Field | Meaning |
+|-------|---------|
+| **prompt_tokens** | Tokens in your request (system prompt + conversation history + new message). Grows with every turn because the full history is re-sent. |
+| **completion_tokens** | Tokens the model generated in its response. |
+| **total_tokens** | `prompt_tokens + completion_tokens`. This is what you get billed for. |
+
+Understanding token usage matters because:
+
+- **Cost** -- LLM APIs charge per token. Knowing your usage helps you estimate
+  costs and avoid surprises.
+- **Context window** -- every model has a maximum context length. As
+  prompt tokens grow, you approach that limit.
+- **System prompt impact** -- a long `AGENTS.md` adds tokens to *every*
+  request, not just the first one.
+
+The OpenRouter API returns usage in the response JSON:
+
+```json
+{
+  "choices": [...],
+  "usage": {
+    "prompt_tokens": 127,
+    "completion_tokens": 45,
+    "total_tokens": 172
+  }
+}
+```
+
+---
+
+## Feature C: `/usage` Command
+
+### What you need to build
+
+Add a `/usage` command that tracks and displays token usage across the
+conversation:
+
+- After each API response, store the token usage if the API returned it.
+- `/usage` shows **cumulative totals** (prompt, completion, total) across all
+  turns.
+- `/usage all` shows a **per-turn table** plus cumulative totals.
+- If no usage data has been recorded, show "No usage data recorded."
+
+### Choose your path: Hard -- just the requirements
+
+Create a `TokenUsage` struct and a `ChatResponse` that bundles
+`AssistantResponse` with `optional<TokenUsage>`.
+Change `IClient::send_message` to return
+`Result<ChatResponse>`, update `OpenRouterClient` to extract `json["usage"]`.
+In `ChatLoop`, store usage per turn, implement `/usage` and `/usage all`.
+All tests pass: `ctest --preset debug`
+
+
+### Choose your path: Medium -- guided implementation
+
+#### Files you will modify or create
+
+| File | What to change |
+|------|---------------|
+| `src/wjh/chat/types.atlas` | Add `PromptTokens`, `CompletionTokens`, `TotalTokens` |
+| `src/wjh/chat/TokenUsage.hpp` | **NEW** -- `TokenUsage` and `ChatResponse` structs |
+| `src/wjh/chat/CMakeLists.txt` | Add `TokenUsage.hpp` to PUBLIC sources |
+| `src/wjh/chat/client/IClient.hpp` | Change return type to `Result<ChatResponse>` |
+| `src/wjh/chat/client/OpenRouterClient.hpp/.cpp` | Update return types, extract `json["usage"]` |
+| `src/wjh/testing/MockClient.hpp/.cpp` | Add `ChatResponse` overload, update return type |
+| `src/wjh/chat/ChatLoop.hpp/.cpp` | Add `usage_history_`, implement `/usage` commands |
+
+#### Key hints
+
+- Atlas types need `+` for accumulation and `default_value=0u`:
+  ```
+  [class PromptTokens]
+  description=std::uint32_t; +, <=>
+  default_value=0u
+  ```
+
+- `TokenUsage` fields need `{}` initializers -- Atlas explicit constructors
+  require this for aggregate initialization to work.
+
+- Change `IClient`'s return type to `Result<ChatResponse>` first. Compiler
+  errors will guide you to every file that needs updating.
+
+- Use `json.value("prompt_tokens", 0u)` for safe extraction from the usage
+  JSON (returns the default if the key is missing).
+
+- Use `json_value()` to unwrap strong types at the serialization boundary
+  when formatting output with `std::format`.
+
+- Keep the existing `MockClient::queue_response(AssistantResponse)` overload
+  as a convenience wrapper around `ChatResponse{.response=...,
+  .usage=nullopt}` so existing tests compile unchanged.
+
+
+### Choose your path: Easy -- step-by-step walkthrough
+
+Follow these three phases in order. Build after each phase.
+
+#### Phase 1: Types and plumbing
+
+Add these blocks to `src/wjh/chat/types.atlas` after `AssistantResponse`:
+
+```
+# Number of tokens in the prompt
+[class PromptTokens]
+description=std::uint32_t; +, <=>
+default_value=0u
+
+# Number of tokens in the completion
+[class CompletionTokens]
+description=std::uint32_t; +, <=>
+default_value=0u
+
+# Total number of tokens used
+[class TotalTokens]
+description=std::uint32_t; +, <=>
+default_value=0u
+```
+
+Create `src/wjh/chat/TokenUsage.hpp`:
+
+```cpp
+#ifndef WJH_CHAT_A7B3C9D1E5F6482394AD8E1F2C3B4A56
+#define WJH_CHAT_A7B3C9D1E5F6482394AD8E1F2C3B4A56
+
+#include "wjh/chat/types.hpp"
+
+#include <optional>
+
+namespace wjh::chat {
+
+struct TokenUsage
+{
+    PromptTokens prompt_tokens{};
+    CompletionTokens completion_tokens{};
+    TotalTokens total_tokens{};
+};
+
+struct ChatResponse
+{
+    AssistantResponse response;
+    std::optional<TokenUsage> usage;
+};
+
+} // namespace wjh::chat
+
+#endif
+```
+
+Add `TokenUsage.hpp` to `PUBLIC` sources in `src/wjh/chat/CMakeLists.txt`.
+
+Now change `IClient::send_message` and `do_send_message` return types from
+`Result<AssistantResponse>` to `Result<ChatResponse>`. The compiler will flag
+every file that needs updating -- `OpenRouterClient`, `MockClient`, and
+`ChatLoop`. Follow the compiler errors and update each return type
+mechanically.
+
+#### Phase 2: Extract usage from JSON
+
+This is the only non-obvious part. In `OpenRouterClient.cpp`, update
+`parse_response` to extract the usage block:
+
+```cpp
+std::optional<TokenUsage> usage;
+if (json.contains("usage")) {
+    auto const & u = json["usage"];
+    usage = TokenUsage{
+        .prompt_tokens = PromptTokens{
+            u.value("prompt_tokens", 0u)},
+        .completion_tokens = CompletionTokens{
+            u.value("completion_tokens", 0u)},
+        .total_tokens = TotalTokens{
+            u.value("total_tokens", 0u)}};
+}
+
+return ChatResponse{
+    .response = AssistantResponse{std::move(text)},
+    .usage = std::move(usage)};
+```
+
+#### Phase 3: Track and display
+
+In `ChatLoop.hpp`, add a `std::vector<TokenUsage> usage_history_` member.
+
+In `do_process_input`, decompose the `ChatResponse` and push usage:
+
+```cpp
+auto & chat_response = *result;
+
+if (chat_response.usage) {
+    usage_history_.push_back(*chat_response.usage);
+}
+
+do_display_response(chat_response.response);
+conversation_.add_message(chat_response.response);
+```
+
+For `/usage`, accumulate across the history and format with `json_value()`:
+
+```cpp
+auto cumulative = TokenUsage{};
+for (auto const & u : usage_history_) {
+    cumulative.prompt_tokens += u.prompt_tokens;
+    cumulative.completion_tokens += u.completion_tokens;
+    cumulative.total_tokens += u.total_tokens;
+}
+
+out_ << std::format(
+    "Token usage ({} turn{}):\n"
+    "  Prompt:     {}\n"
+    "  Completion: {}\n"
+    "  Total:      {}\n\n",
+    usage_history_.size(),
+    usage_history_.size() == 1 ? "" : "s",
+    json_value(cumulative.prompt_tokens),
+    json_value(cumulative.completion_tokens),
+    json_value(cumulative.total_tokens));
+```
+
+Add `/usage all` (check *before* `/usage` since it is a longer match) for a
+per-turn table, update `/clear` to also clear `usage_history_`, and update
+`/help` to list the new commands.
+
+Existing tests still compile thanks to the `MockClient` backward-compatible
+overload. Write new tests if you want extra coverage.
+
+---
+
+## Experiments C: Token Usage
+
+### Watch tokens grow
+
+Start a conversation and send 3-4 messages. After each reply, type `/usage`.
+Notice how prompt tokens increase with every turn -- the full conversation
+history is re-sent each time.
+
+### Measure AGENTS.md impact
+
+1. Create a short `AGENTS.md` (2-3 lines). Send a message and check `/usage`.
+2. Now make `AGENTS.md` much longer (paste in a full page of instructions).
+   Send the same message and compare prompt tokens.
+
+The difference tells you exactly how many tokens your system prompt costs
+*per turn*.
+
+### Clear and compare
+
+After several turns, note the `/usage` totals. Then `/clear` and verify
+`/usage` shows "No usage data recorded." Start a fresh conversation and
+compare the per-turn costs to your first run.
+
+---
+
 ## Verify
 
 Before moving on, make sure:
 
 - [ ] `cmake --build --preset debug` compiles with no warnings
 - [ ] `ctest --preset debug` -- all tests pass
-- [ ] `chat_app --temperature 0.5 --show-config` shows the temperature
-- [ ] `chat_app --temperature notanumber` gives a clear error
-- [ ] `TEMPERATURE=0.7` in `.env` works
-- [ ] `AGENTS.md` in the current directory gets loaded into the system prompt
-- [ ] Without `AGENTS.md`, the app works exactly as before
+- [ ] Temperature: `--temperature 0.5 --show-config` shows it, `--temperature
+  notanumber` gives a clear error, `TEMPERATURE=0.7` in `.env` works
+- [ ] `AGENTS.md` in the current directory gets loaded into the system prompt;
+  without it, the app works exactly as before
+- [ ] `/usage` shows "No usage data recorded." before any messages, cumulative
+  totals after sending messages
+- [ ] `/usage all` shows per-turn breakdown
+- [ ] `/clear` resets both conversation and usage history
+- [ ] `/help` lists `/usage` and `/usage all`
