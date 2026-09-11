@@ -5,9 +5,10 @@ download the workshop environment, and build the starter project inside it.
 The downloaded image includes the C++ compiler, CMake, Atlas, and the project's
 third-party dependencies. You do not need to build the Docker image yourself.
 
-Have the **workshop image reference** supplied by your instructor ready. It will
-start with `ghcr.io/jodyhagins/aipp101-starter/workshop` and identify the version
-for your class. Image downloads can be several gigabytes; allow time before class.
+The **workshop image SHA (digest)** is available in the workshop's Discord channel.
+Use it with `ghcr.io/jodyhagins/aipp101-starter/workshop` to identify the exact image
+for your class, as shown in step 3. Image downloads can be several gigabytes;
+allow time before class.
 
 ## 1. Install and start Docker
 
@@ -65,12 +66,14 @@ Keep your own edits committed or saved before pulling workshop updates.
 
 ## 3. Download the workshop image
 
-Replace the entire example value below with the image reference your instructor
-provides. A reference ending in `@sha256:...` identifies the exact image for your
-class; a reference ending in `:workshop-v1` is a version tag.
+Copy the image SHA from the workshop's Discord channel. Replace
+`PASTE_THE_IMAGE_SHA_FROM_DISCORD_HERE` below with the digest's hexadecimal value
+(do not repeat the `sha256:` prefix). This reference identifies the exact image
+for your class. If the channel provides a complete image reference, use that as
+the entire `WORKSHOP_IMAGE` value instead.
 
 ```bash
-export WORKSHOP_IMAGE='PASTE_THE_IMAGE_REFERENCE_FROM_YOUR_INSTRUCTOR_HERE'
+export WORKSHOP_IMAGE='ghcr.io/jodyhagins/aipp101-starter/workshop@sha256:PASTE_THE_IMAGE_SHA_FROM_DISCORD_HERE'
 docker pull "$WORKSHOP_IMAGE"
 ```
 
@@ -79,9 +82,10 @@ associated with the repository's Packages section. Docker chooses the appropriat
 AMD64 or ARM64 image for your machine. A public workshop image does not require a
 GitHub account or registry login to download.
 
-Save the instructor's reference: set `WORKSHOP_IMAGE` again when opening a new
+Save the image reference: set `WORKSHOP_IMAGE` again when opening a new
 terminal. An image must have been published before `docker pull` can download it;
-ask your instructor if you have not received the class image reference yet.
+check the workshop's Discord channel and ask your instructor if the image SHA
+has not been posted yet.
 
 ## 4. Enter the workshop environment
 
