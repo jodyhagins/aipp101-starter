@@ -1,0 +1,112 @@
+name: Workshop image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'New workshop image tag (for example workshop-v1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workshop-image-${{ inputs.image_tag }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      image: ${{ steps.settings.outputs.image }}
+      atlas_ref: ${{ steps.settings.outputs.atlas_ref }}
+    steps:
+      - name: Resolve image name and Atlas main once for both architectures
+        id: settings
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^workshop-[a-zA-Z0-9_.-]+$ ]] || {
+            echo 'Choose a tag starting with workshop-, using letters, numbers, dots, hyphens or underscores.' >&2
+            exit 1
+          }
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/workshop" >> "$GITHUB_OUTPUT"
+          atlas_ref=$(git ls-remote https://github.com/jodyhagins/atlas.git refs/heads/main | cut -f1)
+          [[ "$atlas_ref" =~ ^[0-9a-f]{40}$ ]]
+          echo "atlas_ref=$atlas_ref" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      IMAGE: ${{ needs.prepare.outputs.image }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build native image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.documentation=https://github.com/${{ github.repository }}/blob/main/docs/student-setup.md
+            org.opencontainers.image.title=AI++ 101 Workshop
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: ATLAS_REF=${{ needs.prepare.outputs.atlas_ref }}
+          cache-from: type=gha,scope=workshop-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=workshop-${{ matrix.arch }}
+      - name: Verify clean build and tests without network access
+        run: |
+          docker run --rm --network=none \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/source,readonly" \
+            "$IMAGE:$IMAGE_TAG-$ARCH" bash /source/scripts/verify-workshop.sh
+      - name: Push tested architecture
+        run: docker push "$IMAGE:$IMAGE_TAG-$ARCH"
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    env:
+      IMAGE: ${{ needs.prepare.outputs.image }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the tested multi-platform image
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:$IMAGE_TAG" \
+            "$IMAGE:$IMAGE_TAG-amd64" "$IMAGE:$IMAGE_TAG-arm64"
+          {
+            docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG"
+            echo "Share the image digest above with students; use a new tag for the next workshop release."
+            echo "Student setup guide: https://github.com/$GITHUB_REPOSITORY/blob/main/docs/student-setup.md"
+            echo "For public student downloads, set the linked GHCR package visibility to Public after its first publication."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install -y \
     clangd \
     # Libraries (common)
     libboost-all-dev \
+    libssl-dev \
     libgtest-dev \
     libgmock-dev \
     libbenchmark-dev \
@@ -106,6 +107,25 @@ RUN git clone --depth 1 --branch ${WJH_FORMAT_REF} https://github.com/jodyhagins
     && rm -rf /tmp/llvm-project
 
 # -----------------------------------------------------------------------------
+# Install Atlas from main, including its CMake package for downstream builds
+# Commit metadata invalidates this layer when main changes. Build that exact SHA.
+# -----------------------------------------------------------------------------
+ARG ATLAS_REF=main
+ADD https://api.github.com/repos/jodyhagins/atlas/commits/${ATLAS_REF} /tmp/atlas-version.json
+RUN git init /tmp/atlas \
+    && git -C /tmp/atlas remote add origin https://github.com/jodyhagins/atlas.git \
+    && git -C /tmp/atlas fetch --depth 1 origin "$(jq -er '.sha' /tmp/atlas-version.json)" \
+    && git -C /tmp/atlas checkout --detach FETCH_HEAD \
+    && cmake -S /tmp/atlas -B /tmp/atlas/build -G Ninja \
+       -DCMAKE_BUILD_TYPE=Release \
+       -DCMAKE_INSTALL_PREFIX=/usr/local \
+       -DATLAS_BUILD_TESTS=OFF \
+    && cmake --build /tmp/atlas/build --target atlas --parallel 2 \
+    && cmake --install /tmp/atlas/build \
+    && atlas --help \
+    && rm -rf /tmp/atlas /tmp/atlas-version.json
+
+# -----------------------------------------------------------------------------
 # Install additional C++ tools via pip
 # -----------------------------------------------------------------------------
 RUN pip3 install --break-system-packages \
@@ -140,6 +160,23 @@ ENV PATH="/home/$USERNAME/.npm-global/bin:${PATH}"
 # Now global installs go into ~/.npm-global
 RUN npm install -g @github/copilot
 RUN node --version && npm --version && copilot --version
+
+# -----------------------------------------------------------------------------
+# Fixed workshop dependencies (independent of application source changes)
+# -----------------------------------------------------------------------------
+USER root
+COPY cmake/DependencySources.cmake /tmp/workshop-deps/cmake/DependencySources.cmake
+COPY docker/dependencies/ /tmp/workshop-deps/docker/dependencies/
+RUN cmake -S /tmp/workshop-deps/docker/dependencies -B /tmp/workshop-deps/build -G Ninja \
+       -DCMAKE_BUILD_TYPE=Release \
+       -DCMAKE_CXX_COMPILER=g++ \
+       -DCMAKE_INSTALL_PREFIX=/opt/wjh-deps \
+    && cmake --build /tmp/workshop-deps/build --parallel 2 \
+    && cmake --install /tmp/workshop-deps/build \
+    && rm -rf /tmp/workshop-deps
+ENV CMAKE_PREFIX_PATH=/opt/wjh-deps
+
+USER $USERNAME
 
 # -----------------------------------------------------------------------------
 # Set up workspace

@@ -1,0 +1,6 @@
+.git
+.build
+build
+.env
+.env.local
+**/__pycache__

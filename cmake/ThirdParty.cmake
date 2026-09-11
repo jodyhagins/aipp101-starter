@@ -5,86 +5,78 @@
 ## https://opensource.org/licenses/MIT
 ## ----------------------------------------------------------------------
 
-# Always-needed dependencies
+include(DependencySources)
 
-message(STATUS "Processing third-party Atlas...")
-FetchContent_Declare(
-        Atlas
-        GIT_REPOSITORY https://github.com/jodyhagins/atlas.git
-        GIT_TAG main
-        SYSTEM
-)
-FetchContent_MakeAvailable(Atlas)
+option(WJH_CHAT_REQUIRE_INSTALLED_DEPS
+    "Require installed dependencies; never download or build third-party code" OFF)
 
-message(STATUS "Processing third-party TartanLlama/expected...")
+if (WJH_CHAT_REQUIRE_INSTALLED_DEPS)
+    find_package(WjhWorkshopDependencies CONFIG QUIET)
+    if (WjhWorkshopDependencies_FOUND)
+        file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/DependencySources.cmake" sources_sha)
+        if (NOT sources_sha STREQUAL WJH_WORKSHOP_DEPENDENCY_SOURCES_SHA256)
+            message(FATAL_ERROR
+                "The workshop image's dependency pins differ from this checkout. "
+                "Pull the updated workshop image supplied by the instructor.")
+        endif ()
+    endif ()
+endif ()
+
+# A macro keeps imported targets visible to all of the project's subdirectories.
+macro(wjh_find_or_fetch name package target)
+    if (NOT TARGET ${target})
+        find_package(${package} ${ARGN} CONFIG QUIET)
+        if (${package}_FOUND AND TARGET ${target})
+            message(STATUS "Using installed ${package}: ${${package}_DIR}")
+        elseif (WJH_CHAT_REQUIRE_INSTALLED_DEPS)
+            message(FATAL_ERROR
+                "Required installed dependency '${package}' is missing or incompatible. "
+                "Use the workshop image matching this checkout, or set "
+                "CMAKE_PREFIX_PATH to your dependency installation. "
+                "WJH_CHAT_REQUIRE_INSTALLED_DEPS prevents downloading a fallback.")
+        elseif (${package}_FOUND OR TARGET ${target})
+            message(FATAL_ERROR
+                "Installed package '${package}' does not provide a usable '${target}'. "
+                "Reinstall it with the required integrations enabled, or disable its "
+                "discovery in a fresh build directory to use the source fallback.")
+        else ()
+            message(STATUS "Building ${name} from its declared source revision...")
+            FetchContent_MakeAvailable(${name})
+        endif ()
+    endif ()
+endmacro()
+
+wjh_find_or_fetch(Atlas Atlas Atlas::atlas)
+
 set(EXPECTED_BUILD_TESTS OFF)
 set(EXPECTED_BUILD_PACKAGE OFF)
-set(EXPECTED_BUILD_PACKAGE_DEB OFF)
-set(EXPECTED_BUILD_PACKAGE_RPM OFF)
-FetchContent_Declare(
-        tl-expected
-        GIT_REPOSITORY https://github.com/TartanLlama/expected.git
-        GIT_TAG master
-        SYSTEM
-)
-FetchContent_MakeAvailable(tl-expected)
+wjh_find_or_fetch(tl-expected tl-expected tl::expected 1.3.1 EXACT)
 
-message(STATUS "Processing third-party nlohmann/json...")
 set(JSON_BuildTests OFF)
 set(JSON_Install OFF)
-FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG v3.11.3
-        SYSTEM
-)
-FetchContent_MakeAvailable(nlohmann_json)
+wjh_find_or_fetch(nlohmann_json nlohmann_json nlohmann_json::nlohmann_json 3.11.3 EXACT)
 
-message(STATUS "Processing third-party cpp-httplib...")
 set(HTTPLIB_REQUIRE_OPENSSL ON)
 set(HTTPLIB_COMPILE OFF)
-FetchContent_Declare(
-        httplib
-        GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-        GIT_TAG v0.18.3
-        SYSTEM
-)
-FetchContent_MakeAvailable(httplib)
+wjh_find_or_fetch(httplib httplib httplib::httplib 0.18.3 EXACT COMPONENTS OpenSSL)
 
-message(STATUS "Processing third-party laserpants/dotenv-cpp...")
 set(BUILD_DOCS OFF CACHE INTERNAL "")
-FetchContent_Declare(
-        dotenv
-        GIT_REPOSITORY https://github.com/laserpants/dotenv-cpp.git
-        GIT_TAG master
-        SYSTEM
-)
-FetchContent_MakeAvailable(dotenv)
+wjh_find_or_fetch(dotenv laserpants_dotenv laserpants::dotenv)
+if (TARGET laserpants::dotenv AND NOT TARGET dotenv)
+    add_library(dotenv ALIAS laserpants::dotenv)
+endif ()
 
-# Test dependencies (conditional)
 if (WJH_CHAT_BUILD_TESTS)
     string(REGEX REPLACE "(^| )-g([0-9]?)( |$)" "\\1-g3\\3" tmp "${CMAKE_CXX_FLAGS_DEBUG}")
     if (NOT "${CMAKE_CXX_FLAGS_DEBUG}" STREQUAL "${tmp}")
-        message(STATUS "Changing CMAKE_CXX_FLAGS_DEBUG from '${CMAKE_CXX_FLAGS_DEBUG}' to '${tmp}'")
         set(CMAKE_CXX_FLAGS_DEBUG "${tmp}")
     endif ()
 
-    message(STATUS "Processing third-party DocTest...")
-    FetchContent_Declare(
-            DocTest
-            GIT_REPOSITORY https://github.com/jodyhagins/doctest.git
-            GIT_TAG dev
-            SYSTEM
-    )
-    FetchContent_MakeAvailable(DocTest)
+    wjh_find_or_fetch(DocTest doctest doctest::doctest)
+    if (NOT TARGET doctest)
+        add_library(doctest ALIAS doctest::doctest)
+    endif ()
 
-    message(STATUS "Processing third-party RapidCheck...")
     set(RC_ENABLE_DOCTEST ON)
-    FetchContent_Declare(
-            rapidcheck
-            GIT_REPOSITORY https://github.com/jodyhagins/rapidcheck.git
-            GIT_TAG wjh-master
-            SYSTEM
-    )
-    FetchContent_MakeAvailable(rapidcheck)
+    wjh_find_or_fetch(rapidcheck rapidcheck rapidcheck_doctest)
 endif ()

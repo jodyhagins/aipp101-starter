@@ -2,6 +2,13 @@
 
 A complete, working C++ chat application using the OpenRouter API. This is your starting point for the AI++ 101 workshop.
 
+**Workshop students: [start here — install Docker, download the image, and build the project](docs/student-setup.md).**
+
+The workshop uses a prebuilt image hosted in this project's GitHub Packages.
+Students need Docker and Git on their computers; the C++ build tools are included
+in the image. The local-development prerequisites below apply when building
+outside Docker.
+
 ## Quick Start
 
 ### Prerequisites
@@ -11,6 +18,32 @@ A complete, working C++ chat application using the OpenRouter API. This is your 
 - Ninja build system (make requires changing presets)
 - OpenSSL development libraries
 - ccache (optional, for faster rebuilds)
+
+### Workshop Docker environment
+
+For the workshop, use the instructor-provided image and the `workshop` preset.
+The image preinstalls Atlas, tl::expected, nlohmann/json, cpp-httplib, dotenv-cpp,
+doctest, RapidCheck, and OpenSSL development files. The workshop preset requires
+installed dependencies and never downloads or builds a missing dependency.
+
+```bash
+docker pull "$WORKSHOP_IMAGE"               # Use the instructor's image digest.
+./scripts/workshop.sh "$WORKSHOP_IMAGE"      # Opens a shell in the mounted checkout.
+cmake --preset workshop
+cmake --build --preset workshop
+ctest --preset workshop
+```
+
+Keep `.build` between sessions to preserve incremental builds and ccache. See
+[the workshop guide](docs/workshop.md) for image publishing, student setup,
+project updates, and dependency maintenance.
+
+### Dependencies outside the workshop
+
+Ordinary presets prefer installed CMake packages and otherwise fetch the revisions
+in `cmake/DependencySources.cmake`. Atlas tracks `main`; the other source revisions
+are pinned, including the instructor's doctest and RapidCheck forks. Set
+`CMAKE_PREFIX_PATH` for installations outside standard search paths.
 
 ### Setup
 
@@ -58,6 +91,7 @@ A complete, working C++ chat application using the OpenRouter API. This is your 
 
 | Preset | Compiler | Build Type | ASan |
 |--------|----------|------------|------|
+| `workshop` | GCC | Debug | OFF |
 | `debug` | Clang | Debug | ON |
 | `release` | Clang | Release | ON |
 | `debug-gcc` | GCC | Debug | OFF |
