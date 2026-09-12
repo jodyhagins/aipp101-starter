@@ -281,9 +281,19 @@ std::string execute_edit_file(
     if (not file.is_open()) {
         return "Error: Cannot open file: " + path;
     }
+    // GCC 13 at -O3 inlines through istreambuf_iterator into
+    // streambuf and emits a false -Wnull-dereference warning
+    // (GCC PR libstdc++/105580; see also Config.cpp).
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
     std::string contents(
         (std::istreambuf_iterator<char>(file)),
         std::istreambuf_iterator<char>());
+#if defined(__GNUC__) and not defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     file.close();
 
     // Check uniqueness before prompting
