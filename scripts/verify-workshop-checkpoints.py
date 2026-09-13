@@ -62,7 +62,11 @@ def verify_checkpoint(tag, actual_ref=None):
         require('Atlas Strong Type Generator v2.0.0' in source(ref, path),
                 f'{tag}: {path} was not regenerated with the workshop Atlas')
     for path in ['CMakePresets.json', 'cmake/ThirdParty.cmake',
-                 'cmake/DependencySources.cmake', 'scripts/workshop.sh']:
+                 'cmake/DependencySources.cmake', 'scripts/workshop.sh',
+                 'scripts/verify-workshop.sh', 'docker/Dockerfile',
+                 'docker/dependencies/CMakeLists.txt', '.dockerignore',
+                 '.github/workflows/workshop-image.yml',
+                 'docs/student-setup.md', 'docs/workshop.md']:
         require(source(ref, path) == source(ENVIRONMENT_COMMIT, path),
                 f'{tag}: workshop environment differs in {path}')
     return git('rev-parse', ref + '^{commit}')
